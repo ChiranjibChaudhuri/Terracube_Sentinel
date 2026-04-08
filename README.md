@@ -868,6 +868,8 @@ npm run dev                                 # Starts on port 5173
 # Frontend: http://localhost:5173
 # Dagster: http://localhost:3000
 # Grafana: http://localhost:3002
+# Superset: http://localhost:8088
+# AI Agents API: http://localhost:8001
 # MinIO Console: http://localhost:9001
 # Keycloak: http://localhost:8180
 # OpenMetadata: http://localhost:8585

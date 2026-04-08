@@ -216,7 +216,7 @@ services:
     networks:
       - sentinel
 
-  # ─── Grafana (Dashboards) ──────────────────────────────────────────────────
+  # ─── Grafana (Dashboards) — port 3002 to avoid conflict with Dagster ──────
   grafana:
     image: grafana/grafana
     container_name: sentinel-grafana
@@ -225,8 +225,9 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_HTTP_PORT: "3002"
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${GRAFANA_PORT:-3002}:3002"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -237,7 +238,7 @@ services:
       loki:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3002/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -264,6 +265,128 @@ services:
     networks:
       - sentinel
 
+  # ─── Frontend (React SPA via Nginx) ────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: sentinel-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    networks:
+      - sentinel
+
+  # ─── Apache Superset (BI Dashboards) ───────────────────────────────────────
+  superset:
+    image: apache/superset
+    container_name: sentinel-superset
+    restart: unless-stopped
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-terracube-sentinel-secret-key-change-me}
+      SUPERSET_LOAD_EXAMPLES: "no"
+    ports:
+      - "8088:8088"
+    networks:
+      - sentinel
+
+  # ─── Dagster PostgreSQL (run/event storage) ────────────────────────────────
+  dagster-postgres:
+    image: postgres:17-alpine
+    container_name: sentinel-dagster-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dagster
+      POSTGRES_PASSWORD: dagster
+      POSTGRES_DB: dagster
+    ports:
+      - "5433:5432"
+    volumes:
+      - dagster_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dagster"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - sentinel
+
+  # ─── Dagster Webserver (UI) — port 3000 ────────────────────────────────────
+  dagster-webserver:
+    build:
+      context: ./dagster
+      dockerfile: ../Dockerfile.dagster
+    container_name: sentinel-dagster-webserver
+    restart: unless-stopped
+    command: >
+      dagster-webserver
+        -h 0.0.0.0
+        -p 3000
+        -w workspace.yaml
+    ports:
+      - "3000:3000"
+    environment:
+      DAGSTER_POSTGRES_HOST: dagster-postgres
+      DAGSTER_POSTGRES_PORT: "5432"
+      DAGSTER_POSTGRES_USER: dagster
+      DAGSTER_POSTGRES_PASSWORD: dagster
+      DAGSTER_POSTGRES_DB: dagster
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
+      FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      CDS_API_KEY: "${CDS_API_KEY:-}"
+      NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+    volumes:
+      - ./dagster:/opt/dagster/app
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+    networks:
+      - sentinel
+
+  # ─── Dagster Daemon (schedules, sensors, run queue) ────────────────────────
+  dagster-daemon:
+    build:
+      context: ./dagster
+      dockerfile: ../Dockerfile.dagster
+    container_name: sentinel-dagster-daemon
+    restart: unless-stopped
+    command: dagster-daemon run
+    environment:
+      DAGSTER_POSTGRES_HOST: dagster-postgres
+      DAGSTER_POSTGRES_PORT: "5432"
+      DAGSTER_POSTGRES_USER: dagster
+      DAGSTER_POSTGRES_PASSWORD: dagster
+      DAGSTER_POSTGRES_DB: dagster
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
+      FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      CDS_API_KEY: "${CDS_API_KEY:-}"
+      NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+    volumes:
+      - ./dagster:/opt/dagster/app
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+    networks:
+      - sentinel
+
+  # ─── AI Agents (FastAPI) ───────────────────────────────────────────────────
+  agents:
+    build: ./agents
+    container_name: sentinel-agents
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
+      FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+    networks:
+      - sentinel
+
 volumes:
   postgres_data:
   typedb_data:
@@ -274,6 +397,7 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  dagster_pg_data:
 
 networks:
   sentinel:

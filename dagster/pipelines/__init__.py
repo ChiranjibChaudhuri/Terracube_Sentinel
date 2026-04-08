@@ -1,6 +1,6 @@
 """TerraCube Sentinel Dagster pipelines — geo-hazard monitoring."""
 
-from dagster import Definitions, EnvVar, ScheduleDefinition
+from dagster import Definitions, ScheduleDefinition
 
 from .real_time_hazards import (
     real_time_hazards_job,
@@ -34,6 +34,25 @@ from .infrastructure_vulnerability import (
     compute_exposure,
     update_infrastructure_assets,
 )
+from .air_quality import (
+    air_quality_job,
+    fetch_openaq_measurements,
+    fetch_waqi_status,
+    normalize_air_quality,
+    load_air_quality_to_foundry,
+)
+from .social_signals import (
+    social_signals_job,
+    fetch_gdelt_events,
+    fetch_gdelt_tone,
+    normalize_social_signals,
+)
+from .risk_scoring import (
+    risk_scoring_job,
+    aggregate_hazard_data,
+    compute_composite_risk,
+    update_region_risk_scores,
+)
 
 # ── Schedules ──────────────────────────────────────────────────────────
 
@@ -61,41 +80,82 @@ infra_schedule = ScheduleDefinition(
     default_status=None,
 )
 
+air_quality_schedule = ScheduleDefinition(
+    job=air_quality_job,
+    cron_schedule="*/30 * * * *",  # every 30 minutes
+    default_status=None,
+)
+
+social_signals_schedule = ScheduleDefinition(
+    job=social_signals_job,
+    cron_schedule="*/15 * * * *",  # every 15 minutes
+    default_status=None,
+)
+
+risk_scoring_schedule = ScheduleDefinition(
+    job=risk_scoring_job,
+    cron_schedule="0 * * * *",  # hourly
+    default_status=None,
+)
+
 # ── Definitions ────────────────────────────────────────────────────────
 
 defs = Definitions(
     assets=[
+        # real_time_hazards
         fetch_open_meteo_weather,
         fetch_usgs_earthquakes,
         fetch_nasa_firms_fires,
         fetch_nasa_eonet_events,
         normalize_hazard_records,
         load_hazards_to_foundry,
+        # satellite_ingestion
         search_stac_catalogs,
         filter_scenes,
         download_cog_assets,
         store_in_minio,
         register_data_products,
+        # climate_reanalysis
         download_era5_data,
         compute_degree_days,
         compute_anomalies,
         aggregate_to_regions,
         update_risk_assessments,
+        # infrastructure_vulnerability
         download_osm_data,
         fetch_active_hazards,
         compute_exposure,
         update_infrastructure_assets,
+        # air_quality
+        fetch_openaq_measurements,
+        fetch_waqi_status,
+        normalize_air_quality,
+        load_air_quality_to_foundry,
+        # social_signals
+        fetch_gdelt_events,
+        fetch_gdelt_tone,
+        normalize_social_signals,
+        # risk_scoring
+        aggregate_hazard_data,
+        compute_composite_risk,
+        update_region_risk_scores,
     ],
     jobs=[
         real_time_hazards_job,
         satellite_ingestion_job,
         climate_reanalysis_job,
         infrastructure_vulnerability_job,
+        air_quality_job,
+        social_signals_job,
+        risk_scoring_job,
     ],
     schedules=[
         hazards_schedule,
         satellite_schedule,
         climate_schedule,
         infra_schedule,
+        air_quality_schedule,
+        social_signals_schedule,
+        risk_scoring_schedule,
     ],
 )

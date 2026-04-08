@@ -1,0 +1,33 @@
+"""Agent configuration for TerraCube Sentinel."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+
+@dataclass
+class AgentConfig:
+    """Configuration for an AI agent."""
+
+    model: str = "llama3"
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    tools: list[str] = field(default_factory=list)
+
+
+@dataclass
+class OllamaConfig:
+    """Connection settings for Ollama LLM server."""
+
+    base_url: str = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    model: str = "llama3"
+
+
+@dataclass
+class FoundryConfig:
+    """Connection settings for Open Foundry API."""
+
+    api_url: str = os.environ.get("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
+    graphql_url: str = os.environ.get("FOUNDRY_GRAPHQL_URL", "http://localhost:8080/graphql")
+    token: str = os.environ.get("FOUNDRY_API_TOKEN", "")
