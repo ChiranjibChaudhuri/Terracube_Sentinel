@@ -67,6 +67,18 @@ from sources.fusion_pipeline import (
     fetch_demographic_data,
     fetch_infrastructure_data,
 )
+from .ai_ingestion import (
+    ai_ingestion_job,
+    fetch_raw_events,
+    classify_with_ai,
+    ai_extract_entities,
+    assess_quality,
+    detect_anomalies_and_duplicates,
+    merge_and_deduplicate,
+    ai_map_to_ontology,
+    load_to_foundry,
+    generate_ingest_summary,
+)
 
 # ── Schedules ──────────────────────────────────────────────────────────
 
@@ -109,6 +121,12 @@ social_signals_schedule = ScheduleDefinition(
 risk_scoring_schedule = ScheduleDefinition(
     job=risk_scoring_job,
     cron_schedule="0 * * * *",  # hourly
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+
+ai_ingestion_schedule = ScheduleDefinition(
+    job=ai_ingestion_job,
+    cron_schedule="*/15 * * * *",  # every 15 minutes
     default_status=DefaultScheduleStatus.STOPPED,
 )
 
@@ -163,6 +181,16 @@ defs = Definitions(
         fetch_financial_indicators,
         fetch_demographic_data,
         fetch_infrastructure_data,
+        # ai_ingestion
+        fetch_raw_events,
+        classify_with_ai,
+        ai_extract_entities,
+        assess_quality,
+        detect_anomalies_and_duplicates,
+        merge_and_deduplicate,
+        ai_map_to_ontology,
+        load_to_foundry,
+        generate_ingest_summary,
     ],
     jobs=[
         real_time_hazards_job,
@@ -173,6 +201,7 @@ defs = Definitions(
         social_signals_job,
         risk_scoring_job,
         data_fusion_job,
+        ai_ingestion_job,
     ],
     schedules=[
         hazards_schedule,
@@ -183,5 +212,6 @@ defs = Definitions(
         social_signals_schedule,
         risk_scoring_schedule,
         data_fusion_schedule,
+        ai_ingestion_schedule,
     ],
 )

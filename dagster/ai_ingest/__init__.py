@@ -1,7 +1,18 @@
-"""AI-powered ingest helpers for TerraCube Sentinel.
+"""AI-powered ingest layer for TerraCube Sentinel.
 
-Provides agent configuration and risk-scoring utilities that can be
-used by Dagster pipelines or standalone scripts.
+Provides LLM-driven classification, entity extraction, quality scoring,
+anomaly detection, auto-ontology mapping, and summarisation.
+
+Sub-modules
+-----------
+config           – pipeline-wide settings and feature flags
+llm_client       – unified LLM abstraction (Ollama / OpenAI-compatible)
+event_classifier – classify raw events into ODL ontology types
+entity_extractor – extract entities from unstructured text
+quality_scorer   – data-quality assessment and duplicate detection
+anomaly_detector – statistical anomaly and schema-drift detection
+auto_mapper      – auto-map source data to ODL object types
+summarizer       – natural-language summaries and ingest reports
 """
 
 from __future__ import annotations
@@ -10,8 +21,26 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+# Re-export key classes for convenience
+from .config import (
+    AIIngestConfig,
+    FeatureFlags,
+    LLMSettings,
+    QualityThresholds,
+    SOURCE_RELIABILITY,
+    STRUCTURED_SOURCES,
+    UNSTRUCTURED_SOURCES,
+)
+from .llm_client import LLMClient
+from .event_classifier import classify_event, classify_events
+from .entity_extractor import extract_entities, extract_from_gdelt, extract_from_news
+from .quality_scorer import score_data_quality, detect_duplicates
+from .anomaly_detector import detect_anomalies, detect_schema_drift
+from .auto_mapper import map_to_ontology
+from .summarizer import summarize_events, generate_ingest_report
 
-# ── Agent configuration ────────────────────────────────────────────────
+
+# ── Legacy API (kept for backward compat with existing pipelines) ─────
 
 
 @dataclass
@@ -28,12 +57,12 @@ class AgentConfig:
     ])
 
 
-# ── Weights for composite risk formula ─────────────────────────────────
+# ── Weights for composite risk formula ────────────────────────────────
 
 W_HAZARD_FREQ = 0.4
 W_AVG_SEVERITY = 0.3
 W_INFRA_EXPOSURE = 0.2
-W_SENSOR_GAP = 0.1  # applied as (1 - sensor_coverage)
+W_SENSOR_GAP = 0.1
 
 FOUNDRY_API_URL = os.environ.get("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
 FOUNDRY_API_TOKEN = os.environ.get("FOUNDRY_API_TOKEN", "")
@@ -44,9 +73,6 @@ SEVERITY_SCORES: dict[str, float] = {
     "HIGH": 0.7,
     "CRITICAL": 1.0,
 }
-
-
-# ── Risk scoring ───────────────────────────────────────────────────────
 
 
 async def score_risk_for_region(
@@ -61,31 +87,14 @@ async def score_risk_for_region(
       + 0.3 * avg_severity
       + 0.2 * infrastructure_exposure
       + 0.1 * (1 - sensor_coverage)
-
-    Parameters
-    ----------
-    region_id:
-        Unique identifier of the region in Foundry.
-    region_geometry:
-        GeoJSON geometry of the region (Polygon or MultiPolygon).
-    hazard_history:
-        List of past HazardEvent dicts, each with at least a ``severity``
-        field (LOW / MODERATE / HIGH / CRITICAL).
-
-    Returns
-    -------
-    float
-        Composite risk score normalised to [0, 1].
     """
-    import httpx  # local import to keep module importable without httpx at top-level
+    import httpx
 
     headers = {"Authorization": f"Bearer {FOUNDRY_API_TOKEN}"}
 
-    # 1. Hazard frequency — normalise count to [0, 1] (cap at 100 events)
     hazard_count = len(hazard_history)
     hazard_frequency = min(1.0, hazard_count / 100.0)
 
-    # 2. Average severity
     if hazard_history:
         severity_vals = [
             SEVERITY_SCORES.get(
@@ -97,7 +106,6 @@ async def score_risk_for_region(
     else:
         avg_severity = 0.0
 
-    # 3. Infrastructure exposure — query Foundry for assets in this region
     infrastructure_exposure = 0.0
     async with httpx.AsyncClient(
         timeout=30, base_url=FOUNDRY_API_URL
@@ -110,21 +118,16 @@ async def score_risk_for_region(
             )
             resp.raise_for_status()
             assets = resp.json().get("data", [])
-
             if assets:
                 exposed = sum(
                     1
                     for a in assets
-                    if (a.get("properties") or a).get(
-                        "exposureLevel", "NONE"
-                    )
-                    != "NONE"
+                    if (a.get("properties") or a).get("exposureLevel", "NONE") != "NONE"
                 )
                 infrastructure_exposure = exposed / len(assets)
         except httpx.HTTPError:
             pass
 
-        # 4. Sensor coverage — query Foundry for sensors in this region
         sensor_coverage = 0.0
         try:
             resp = await client.get(
@@ -134,7 +137,6 @@ async def score_risk_for_region(
             )
             resp.raise_for_status()
             sensors = resp.json().get("data", [])
-
             if sensors:
                 active = sum(
                     1
@@ -145,7 +147,6 @@ async def score_risk_for_region(
         except httpx.HTTPError:
             pass
 
-    # 5. Compute composite score
     composite = (
         W_HAZARD_FREQ * hazard_frequency
         + W_AVG_SEVERITY * avg_severity

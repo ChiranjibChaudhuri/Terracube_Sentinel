@@ -298,6 +298,45 @@ async def situational_awareness(
         raise HTTPException(status_code=500, detail=f"Situational awareness failed: {e}")
 
 
+# ── AI Ingestion Status ─────────────────────────────────────────────
+
+
+@app.get("/ai/status")
+async def ai_status():
+    """AI ingestion pipeline status: LLM availability, last ingest stats, quality metrics."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dagster"))
+        from ai_ingest.llm_client import LLMClient
+        from ai_ingest.config import AIIngestConfig
+
+        config = AIIngestConfig()
+        llm = LLMClient(config.llm)
+        llm_available = llm.is_available()
+
+        return {
+            "llm": {
+                "available": llm_available,
+                "model": config.llm.model,
+                "base_url": config.llm.base_url,
+                "stats": llm.stats,
+            },
+            "features": {
+                "llm_classification": config.flags.enable_llm_classification,
+                "anomaly_detection": config.flags.enable_anomaly_detection,
+                "auto_mapping": config.flags.enable_auto_mapping,
+            },
+            "quality_thresholds": {
+                "min_completeness": config.quality.min_completeness,
+                "min_overall_quality": config.quality.min_overall_quality,
+                "duplicate_similarity_threshold": config.quality.duplicate_similarity_threshold,
+            },
+        }
+    except Exception as e:
+        logger.exception("AI status endpoint failed")
+        raise HTTPException(status_code=500, detail=f"AI status check failed: {e}")
+
+
 # ── Alert Endpoints ──────────────────────────────────────────────────
 
 
