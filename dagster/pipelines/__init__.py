@@ -1,3 +1,4 @@
+from dagster import DefaultScheduleStatus
 """TerraCube Sentinel Dagster pipelines — geo-hazard monitoring."""
 
 from dagster import Definitions, ScheduleDefinition
@@ -59,43 +60,43 @@ from .risk_scoring import (
 hazards_schedule = ScheduleDefinition(
     job=real_time_hazards_job,
     cron_schedule="*/5 * * * *",  # every 5 minutes
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 satellite_schedule = ScheduleDefinition(
     job=satellite_ingestion_job,
     cron_schedule="0 */3 * * *",  # every 3 hours
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 climate_schedule = ScheduleDefinition(
     job=climate_reanalysis_job,
     cron_schedule="0 6 * * *",  # daily at 06:00 UTC
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 infra_schedule = ScheduleDefinition(
     job=infrastructure_vulnerability_job,
     cron_schedule="0 */6 * * *",  # every 6 hours
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 air_quality_schedule = ScheduleDefinition(
     job=air_quality_job,
     cron_schedule="*/30 * * * *",  # every 30 minutes
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 social_signals_schedule = ScheduleDefinition(
     job=social_signals_job,
     cron_schedule="*/15 * * * *",  # every 15 minutes
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 risk_scoring_schedule = ScheduleDefinition(
     job=risk_scoring_job,
     cron_schedule="0 * * * *",  # hourly
-    default_status=None,
+    default_status=DefaultScheduleStatus.STOPPED,
 )
 
 # ── Definitions ────────────────────────────────────────────────────────
