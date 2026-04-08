@@ -1,41 +1,80 @@
-"""Ontology tools — query, get, and traverse the knowledge graph."""
-
 from __future__ import annotations
 
-import httpx
-from ..config import FoundryConfig
+import logging
 
-config = FoundryConfig()
+import httpx
+
+from config import FoundryConfig
+
+logger = logging.getLogger(__name__)
 
 
 async def query_objects(
     object_type: str,
     filters: dict | None = None,
+    foundry_config: FoundryConfig | None = None,
 ) -> list[dict]:
     """Query objects from the Open Foundry ontology.
 
-    GET {api_url}/objects?objectType={object_type}
+    Args:
+        object_type: The ontology object type to query (e.g. ``HazardEvent``).
+        filters: Optional key-value filters to narrow results.
+        foundry_config: Optional Foundry connection configuration.
+
+    Returns:
+        A list of object dicts returned by the API.
     """
-    headers = {"Authorization": f"Bearer {config.token}"}
+    config = foundry_config or FoundryConfig()
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if config.token:
+        headers["Authorization"] = f"Bearer {config.token}"
+
     params: dict[str, str] = {"objectType": object_type}
     if filters:
-        for k, v in filters.items():
-            params[k] = str(v)
+        for key, value in filters.items():
+            params[key] = str(value)
 
-    async with httpx.AsyncClient(timeout=30, base_url=config.api_url) as client:
-        resp = await client.get("/objects", params=params, headers=headers)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"{config.api_url}/objects",
+            headers=headers,
+            params=params,
+        )
         resp.raise_for_status()
-        return resp.json().get("data", [])
+        data = resp.json()
+
+    # The API may wrap results in a top-level key
+    if isinstance(data, dict):
+        return data.get("data", data.get("objects", [data]))
+    return data
 
 
-async def get_object(object_type: str, object_id: str) -> dict:
-    """Get a single object by ID.
+async def get_object(
+    object_type: str,
+    object_id: str,
+    foundry_config: FoundryConfig | None = None,
+) -> dict:
+    """Retrieve a single object by its ID from the ontology.
 
-    GET {api_url}/objects/{object_id}
+    Args:
+        object_type: The ontology object type.
+        object_id: The unique identifier of the object.
+        foundry_config: Optional Foundry connection configuration.
+
+    Returns:
+        The object dict.
     """
-    headers = {"Authorization": f"Bearer {config.token}"}
-    async with httpx.AsyncClient(timeout=30, base_url=config.api_url) as client:
-        resp = await client.get(f"/objects/{object_id}", headers=headers)
+    config = foundry_config or FoundryConfig()
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if config.token:
+        headers["Authorization"] = f"Bearer {config.token}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"{config.api_url}/objects/{object_id}",
+            headers=headers,
+            params={"objectType": object_type},
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -44,17 +83,39 @@ async def traverse_graph(
     object_id: str,
     link_type: str,
     direction: str = "OUTBOUND",
+    foundry_config: FoundryConfig | None = None,
 ) -> list[dict]:
-    """Traverse links from an object.
+    """Traverse graph links from a given object.
 
-    GET {api_url}/links?from={object_id}&linkType={link_type}
+    Args:
+        object_id: The source object ID.
+        link_type: The link type to follow (e.g. ``affects``).
+        direction: Link direction, either ``OUTBOUND`` or ``INBOUND``.
+        foundry_config: Optional Foundry connection configuration.
+
+    Returns:
+        A list of linked object dicts.
     """
-    headers = {"Authorization": f"Bearer {config.token}"}
-    params = {
-        "from" if direction == "OUTBOUND" else "to": object_id,
+    config = foundry_config or FoundryConfig()
+    headers: dict[str, str] = {"Accept": "application/json"}
+    if config.token:
+        headers["Authorization"] = f"Bearer {config.token}"
+
+    params: dict[str, str] = {
+        "from": object_id,
         "linkType": link_type,
+        "direction": direction,
     }
-    async with httpx.AsyncClient(timeout=30, base_url=config.api_url) as client:
-        resp = await client.get("/links", params=params, headers=headers)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"{config.api_url}/links",
+            headers=headers,
+            params=params,
+        )
         resp.raise_for_status()
-        return resp.json().get("data", [])
+        data = resp.json()
+
+    if isinstance(data, dict):
+        return data.get("data", data.get("links", []))
+    return data
