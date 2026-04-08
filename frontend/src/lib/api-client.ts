@@ -15,9 +15,13 @@ export async function query<T = unknown>(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: gql, variables }),
   })
+  if (!res.ok) {
+    throw new Error(`GraphQL request failed: ${res.status} ${res.statusText}`)
+  }
   const json: GraphQLResponse<T> = await res.json()
   if (json.errors?.length) throw new Error(json.errors[0].message)
-  return json.data as T
+  if (json.data === undefined) throw new Error('No data returned from GraphQL query')
+  return json.data
 }
 
 export async function mutate<T = unknown>(
@@ -38,11 +42,17 @@ export async function fetchObjects(
     }
   }
   const res = await fetch(`${API_URL}/objects?${params}`)
+  if (!res.ok) {
+    throw new Error(`Fetch objects failed: ${res.status} ${res.statusText}`)
+  }
   const json = await res.json()
   return json.data ?? []
 }
 
 export async function fetchObject(objectId: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_URL}/objects/${objectId}`)
+  if (!res.ok) {
+    throw new Error(`Fetch object failed: ${res.status} ${res.statusText}`)
+  }
   return res.json()
 }

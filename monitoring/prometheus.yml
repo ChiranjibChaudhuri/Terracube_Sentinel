@@ -45,10 +45,10 @@ scrape_configs:
       - targets: ["openmetadata:8585"]
     scrape_interval: 60s
 
-  # ─── Grafana ───────────────────────────────────────────────────────────
+  # ─── Grafana (port 3002, not 3000) ─────────────────────────────────────
   - job_name: grafana
     static_configs:
-      - targets: ["grafana:3000"]
+      - targets: ["grafana:3002"]
     scrape_interval: 30s
 
   # ─── Loki ──────────────────────────────────────────────────────────────
@@ -69,4 +69,16 @@ scrape_configs:
   - job_name: typedb
     static_configs:
       - targets: ["typedb:1729"]
+    scrape_interval: 30s
+
+  # ─── Dagster Webserver ─────────────────────────────────────────────────
+  - job_name: dagster
+    static_configs:
+      - targets: ["dagster-webserver:3000"]
+    scrape_interval: 30s
+
+  # ─── AI Agents (FastAPI) ───────────────────────────────────────────────
+  - job_name: agents
+    static_configs:
+      - targets: ["agents:8001"]
     scrape_interval: 30s

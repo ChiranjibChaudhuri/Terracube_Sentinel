@@ -2,6 +2,7 @@
 Briefing output formatters — Markdown, HTML, and PDF.
 """
 
+import html as html_mod
 import logging
 from datetime import datetime
 
@@ -45,11 +46,11 @@ class BriefingFormatter:
         """Format briefing as HTML page with dark theme styling."""
         sections_html = ""
         for section in sorted(briefing.sections, key=lambda s: -s.priority):
-            content = section.content.replace("\n", "<br>")
-            content = content.replace("**", "<strong>").replace("**", "</strong>")
+            content = html_mod.escape(section.content)
+            content = content.replace("\n", "<br>")
             sections_html += f"""
             <div class="section">
-                <h2>{section.title}</h2>
+                <h2>{html_mod.escape(section.title)}</h2>
                 <div class="content">{content}</div>
             </div>"""
 
@@ -58,7 +59,7 @@ class BriefingFormatter:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{briefing.title}</title>
+    <title>{html_mod.escape(briefing.title)}</title>
     <style>
         body {{
             font-family: 'Inter', -apple-system, sans-serif;
@@ -104,11 +105,11 @@ class BriefingFormatter:
     </style>
 </head>
 <body>
-    <h1>{briefing.title}</h1>
+    <h1>{html_mod.escape(briefing.title)}</h1>
     <div class="meta">
-        <p>Classification: {briefing.classification} |
+        <p>Classification: {html_mod.escape(briefing.classification)} |
            Generated: {briefing.generated_at.strftime('%Y-%m-%d %H:%M UTC')} |
-           Type: {briefing.briefing_type.replace('_', ' ').title()}</p>
+           Type: {html_mod.escape(briefing.briefing_type.replace('_', ' ').title())}</p>
     </div>
     {sections_html}
     <hr>

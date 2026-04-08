@@ -91,92 +91,119 @@ def _make_id(feat: GeoJSONFeature) -> str:
 def fetch_aircraft_positions(context: AssetExecutionContext) -> list[dict]:
     """Fetch real-time aircraft positions from OpenSky Network."""
     adapter = OpenSkyAdapter()
-    features = adapter.fetch_and_normalize()
-    context.log.info(f"Fetched {len(features)} aircraft positions")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} aircraft positions")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_vessel_positions(context: AssetExecutionContext) -> list[dict]:
     """Fetch real-time vessel positions from AIS feeds."""
     adapter = AISAdapter()
-    features = adapter.fetch_and_normalize()
-    context.log.info(f"Fetched {len(features)} vessel positions")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} vessel positions")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_enhanced_fires(context: AssetExecutionContext) -> list[dict]:
     """Fetch enhanced fire data with FRP and confidence scoring."""
     adapter = FIRMSAdapter()
-    features = adapter.fetch_and_normalize(source="VIIRS_SNPP_NRT", days=1)
-    context.log.info(f"Fetched {len(features)} fire detections")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize(source="VIIRS_SNPP_NRT", days=1)
+        context.log.info(f"Fetched {len(features)} fire detections")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_satellite_positions(context: AssetExecutionContext) -> list[dict]:
     """Fetch satellite orbital positions from CelesTrak."""
     adapter = CelesTrakAdapter()
-    features = adapter.fetch_and_normalize(group="weather")
-    context.log.info(f"Fetched {len(features)} satellite positions")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize(group="weather")
+        context.log.info(f"Fetched {len(features)} satellite positions")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_enhanced_earthquakes(context: AssetExecutionContext) -> list[dict]:
     """Fetch earthquakes with ShakeMap, tsunami alerts, aftershock tracking."""
     adapter = EarthquakeAdapter()
-    features = adapter.fetch_and_normalize(min_magnitude="2.5")
-    context.log.info(f"Fetched {len(features)} earthquakes")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize(min_magnitude="2.5")
+        context.log.info(f"Fetched {len(features)} earthquakes")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_weather_alerts(context: AssetExecutionContext) -> list[dict]:
     """Fetch NWS weather alerts and tropical cyclone data."""
     adapter = WeatherAlertAdapter()
-    features = adapter.fetch_and_normalize()
-    context.log.info(f"Fetched {len(features)} weather alerts")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} weather alerts")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_financial_indicators(context: AssetExecutionContext) -> list[dict]:
     """Fetch financial market data: indices, commodities, crypto."""
     adapter = FinanceAdapter()
-    features = adapter.fetch_and_normalize()
-    context.log.info(f"Fetched {len(features)} financial indicators")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} financial indicators")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_demographic_data(context: AssetExecutionContext) -> list[dict]:
     """Fetch socio-economic indicators from World Bank."""
     adapter = DemographicAdapter()
-    features = adapter.fetch_and_normalize()
-    context.log.info(f"Fetched {len(features)} demographic indicators")
-    _load_to_foundry(features, context)
-    return [f.to_dict() for f in features]
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} demographic indicators")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
 
 
 @asset(group_name="data_fusion")
 def fetch_infrastructure_data(context: AssetExecutionContext) -> list[dict]:
     """Fetch airports and ports data."""
     adapter = InfrastructureDataAdapter()
-    airports = adapter.fetch_and_normalize(data_type="airports")
-    ports = adapter.fetch_and_normalize(data_type="ports")
-    all_features = airports + ports
-    context.log.info(f"Fetched {len(airports)} airports + {len(ports)} ports")
-    _load_to_foundry(all_features, context)
-    return [f.to_dict() for f in all_features]
+    try:
+        airports = adapter.fetch_and_normalize(data_type="airports")
+        ports = adapter.fetch_and_normalize(data_type="ports")
+        all_features = airports + ports
+        context.log.info(f"Fetched {len(airports)} airports + {len(ports)} ports")
+        _load_to_foundry(all_features, context)
+        return [f.to_dict() for f in all_features]
+    finally:
+        adapter.close()
 
 
 # ── Job ────────────────────────────────────────────────────────────

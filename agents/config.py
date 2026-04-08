@@ -18,7 +18,11 @@ class AgentConfig:
 class OllamaConfig:
     """Configuration for the Ollama LLM backend."""
 
-    base_url: str = "http://localhost:11434"
+    base_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
+        )
+    )
     model: str = "llama3"
 
 

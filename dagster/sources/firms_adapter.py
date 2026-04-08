@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 FIRMS_API_KEY = os.getenv("FIRMS_API_KEY", "DEMO_KEY")
+if FIRMS_API_KEY == "DEMO_KEY":
+    logger.warning("FIRMS_API_KEY not set — using rate-limited DEMO_KEY. Set FIRMS_API_KEY for production use.")
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 
 

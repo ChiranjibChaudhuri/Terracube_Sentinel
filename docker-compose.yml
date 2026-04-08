@@ -336,6 +336,7 @@ services:
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+      REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:
@@ -365,6 +366,7 @@ services:
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+      REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:
@@ -384,7 +386,7 @@ services:
       FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
-      REDIS_URL: "redis://valkey:6379/0"
+      REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
       ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
     depends_on:
       - valkey

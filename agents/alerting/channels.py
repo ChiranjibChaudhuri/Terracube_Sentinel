@@ -152,25 +152,33 @@ class EmailChannel(AlertChannel):
             return False
 
         try:
-            import smtplib
-            from email.mime.text import MIMEText
-
-            msg = MIMEText(
-                f"{notification.title}\n\n{notification.message}\n\n"
-                f"Region: {notification.region_id}\n"
-                f"Priority: {notification.priority.value}\n"
-                f"Time: {notification.timestamp.isoformat()}"
+            import asyncio
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, self._send_sync, notification
             )
-            msg["Subject"] = f"[{notification.priority.value}] {notification.title}"
-            msg["From"] = self.from_addr
-            msg["To"] = ", ".join(self.to_addrs)
-
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                if self.smtp_user:
-                    server.starttls()
-                    server.login(self.smtp_user, self.smtp_pass)
-                server.send_message(msg)
-            return True
         except Exception as e:
             logger.warning("Email delivery failed: %s", e)
             return False
+
+    def _send_sync(self, notification: AlertNotification) -> bool:
+        """Synchronous SMTP send, run in thread executor to avoid blocking event loop."""
+        import smtplib
+        from email.mime.text import MIMEText
+
+        msg = MIMEText(
+            f"{notification.title}\n\n{notification.message}\n\n"
+            f"Region: {notification.region_id}\n"
+            f"Priority: {notification.priority.value}\n"
+            f"Time: {notification.timestamp.isoformat()}"
+        )
+        msg["Subject"] = f"[{notification.priority.value}] {notification.title}"
+        msg["From"] = self.from_addr
+        msg["To"] = ", ".join(self.to_addrs)
+
+        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            if self.smtp_user:
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_pass)
+            server.send_message(msg)
+        return True

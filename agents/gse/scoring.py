@@ -161,6 +161,10 @@ class GSEScorer:
 
         # Generate synthetic events if none found (for demo)
         if not events:
+            logger.warning(
+                "No events fetched from Foundry API — using synthetic data. "
+                "Set FOUNDRY_API_URL and ensure the API is running for real data."
+            )
             events = self._synthetic_events()
 
         return events

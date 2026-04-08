@@ -83,7 +83,15 @@ class FusionCache:
         if client is None:
             return []
         try:
-            keys = client.keys(f"fusion:{entity_type}:*")
+            # Use SCAN instead of KEYS to avoid blocking Redis
+            pattern = f"fusion:{entity_type}:*"
+            keys: list[str] = []
+            cursor = 0
+            while True:
+                cursor, batch = client.scan(cursor, match=pattern, count=100)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
             if not keys:
                 return []
             values = client.mget(keys)
@@ -96,9 +104,26 @@ class FusionCache:
         if client is None:
             return 0
         try:
-            keys = client.keys(f"fusion:{entity_type}:*")
+            # Use SCAN instead of KEYS to avoid blocking Redis
+            pattern = f"fusion:{entity_type}:*"
+            keys: list[str] = []
+            cursor = 0
+            while True:
+                cursor, batch = client.scan(cursor, match=pattern, count=100)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
             if keys:
                 return client.delete(*keys)
             return 0
         except Exception:
             return 0
+
+    def close(self) -> None:
+        """Close the Redis connection."""
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:
+                pass
+            self._client = None
