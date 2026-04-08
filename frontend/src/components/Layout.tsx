@@ -9,13 +9,17 @@ import {
   Menu,
   ChevronRight,
   Shield,
+  Globe,
+  FileText,
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/objects', label: 'Object Explorer', icon: Database },
   { to: '/map', label: 'Map View', icon: Map },
+  { to: '/country', label: 'Country Intel', icon: Globe },
+  { to: '/briefing', label: 'Briefings', icon: FileText },
+  { to: '/objects', label: 'Object Explorer', icon: Database },
   { to: '/pipelines', label: 'Pipelines', icon: GitBranch },
   { to: '/ontology', label: 'Ontology', icon: Share2 },
   { to: '/settings', label: 'Settings', icon: Settings },

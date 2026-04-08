@@ -9,6 +9,10 @@ import type {
   SatellitePass,
   DataProduct,
   PipelineExecution,
+  Aircraft,
+  Vessel,
+  FinancialIndicator,
+  GSERegionSummary,
 } from './types'
 
 // ── Regions ──────────────────────────────────────────────────────────
@@ -131,6 +135,51 @@ export const mockPipelineExecutions: PipelineExecution[] = [
   { id: 'pe-008', pipelineName: 'risk_scoring', status: 'SUCCEEDED', triggeredBy: 'schedule', startedAt: '2026-04-08T11:00:00Z', completedAt: '2026-04-08T11:02:15Z', nodeResults: { regions: 7, updated: 7 } },
 ]
 
+// ── Aircraft ────────────────────────────────────────────────────────
+
+export const mockAircraft: Aircraft[] = [
+  { id: 'ac-001', icao24: '3c6752', callsign: 'DLH1234', altitude: 11582, heading: 245, velocity: 230, onGround: false, source: 'opensky', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [10.4, 51.2] } },
+  { id: 'ac-002', icao24: 'a12345', callsign: 'UAL789', altitude: 10668, heading: 90, velocity: 245, onGround: false, source: 'opensky', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-87.6, 41.9] } },
+  { id: 'ac-003', icao24: '780a21', callsign: 'CCA102', altitude: 12192, heading: 180, velocity: 260, onGround: false, source: 'opensky', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [116.6, 40.1] } },
+  { id: 'ac-004', icao24: 'c07e3a', callsign: 'ACA455', altitude: 9144, heading: 320, velocity: 210, onGround: false, source: 'opensky', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-79.4, 43.7] } },
+  { id: 'ac-005', icao24: '4ca87d', callsign: 'RYR221', altitude: 11278, heading: 160, velocity: 235, onGround: false, source: 'opensky', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-6.3, 53.3] } },
+]
+
+// ── Vessels ──────────────────────────────────────────────────────────
+
+export const mockVessels: Vessel[] = [
+  { id: 'vs-001', mmsi: '211331640', name: 'ATLANTIC GUARDIAN', imo: '9434765', shipType: 'CARGO', speed: 12.4, course: 270, destination: 'ROTTERDAM', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-5.3, 36.1] } },
+  { id: 'vs-002', mmsi: '244630590', name: 'PACIFIC TRADER', imo: '9567123', shipType: 'TANKER', speed: 8.2, course: 45, destination: 'SINGAPORE', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [103.8, 1.3] } },
+  { id: 'vs-003', mmsi: '366998310', name: 'COASTAL RUNNER', imo: '9012345', shipType: 'PASSENGER', speed: 15.1, course: 180, destination: 'MIAMI', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-74.0, 40.7] } },
+  { id: 'vs-004', mmsi: '538005890', name: 'NORTHERN STAR', imo: '9876543', shipType: 'FISHING', speed: 5.0, course: 90, destination: 'BERGEN', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [5.3, 60.4] } },
+]
+
+// ── Financial Indicators ────────────────────────────────────────────
+
+export const mockFinancialIndicators: FinancialIndicator[] = [
+  { id: 'fin-001', symbol: '^GSPC', name: 'S&P 500', indicatorType: 'STOCK_INDEX', value: 5234.18, changePct: 0.82, region: 'US', source: 'yahoo_finance' },
+  { id: 'fin-002', symbol: '^FTSE', name: 'FTSE 100', indicatorType: 'STOCK_INDEX', value: 8102.55, changePct: -0.34, region: 'UK', source: 'yahoo_finance' },
+  { id: 'fin-003', symbol: '^N225', name: 'Nikkei 225', indicatorType: 'STOCK_INDEX', value: 38456.20, changePct: 1.15, region: 'JP', source: 'yahoo_finance' },
+  { id: 'fin-004', symbol: 'CL=F', name: 'Crude Oil', indicatorType: 'COMMODITY', value: 78.42, changePct: -1.23, region: 'GLOBAL', source: 'yahoo_finance' },
+  { id: 'fin-005', symbol: 'GC=F', name: 'Gold', indicatorType: 'COMMODITY', value: 2358.90, changePct: 0.45, region: 'GLOBAL', source: 'yahoo_finance' },
+  { id: 'fin-006', symbol: 'BTC-USD', name: 'Bitcoin', indicatorType: 'CRYPTO', value: 67234.00, changePct: 2.18, region: 'GLOBAL', source: 'yahoo_finance' },
+  { id: 'fin-007', symbol: '^GDAXI', name: 'DAX', indicatorType: 'STOCK_INDEX', value: 18523.10, changePct: 0.56, region: 'DE', source: 'yahoo_finance' },
+  { id: 'fin-008', symbol: '^BSESN', name: 'BSE Sensex', indicatorType: 'STOCK_INDEX', value: 74012.30, changePct: -0.78, region: 'IN', source: 'yahoo_finance' },
+]
+
+// ── GSE Region Summaries ────────────────────────────────────────────
+
+export const mockGSERegions: GSERegionSummary[] = [
+  { regionId: 'middle-east', regionName: 'Middle East', gseScore: 87.4, threatLevel: 'HEIGHTENED', eventCount: 24, trend: 'up', topCategory: 'conflict' },
+  { regionId: 'south-asia', regionName: 'South Asia', gseScore: 72.1, threatLevel: 'HEIGHTENED', eventCount: 18, trend: 'up', topCategory: 'natural_disaster' },
+  { regionId: 'europe', regionName: 'Europe', gseScore: 45.2, threatLevel: 'ELEVATED', eventCount: 12, trend: 'stable', topCategory: 'political' },
+  { regionId: 'east-asia', regionName: 'East Asia', gseScore: 38.7, threatLevel: 'ELEVATED', eventCount: 9, trend: 'down', topCategory: 'natural_disaster' },
+  { regionId: 'north-america', regionName: 'North America', gseScore: 31.5, threatLevel: 'ELEVATED', eventCount: 7, trend: 'stable', topCategory: 'economic' },
+  { regionId: 'africa', regionName: 'Africa', gseScore: 56.8, threatLevel: 'ELEVATED', eventCount: 15, trend: 'up', topCategory: 'health' },
+  { regionId: 'south-america', regionName: 'South America', gseScore: 28.3, threatLevel: 'STABLE', eventCount: 5, trend: 'stable', topCategory: 'natural_disaster' },
+  { regionId: 'oceania', regionName: 'Oceania', gseScore: 15.2, threatLevel: 'STABLE', eventCount: 3, trend: 'down', topCategory: 'natural_disaster' },
+]
+
 // ── Helper to get all objects by type ────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,6 +194,9 @@ const DATA_MAP: Record<string, any[]> = {
   SatellitePass: mockSatellitePasses,
   DataProduct: mockDataProducts,
   PipelineExecution: mockPipelineExecutions,
+  Aircraft: mockAircraft,
+  Vessel: mockVessels,
+  FinancialIndicator: mockFinancialIndicators,
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

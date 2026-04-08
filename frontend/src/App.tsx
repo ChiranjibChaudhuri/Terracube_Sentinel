@@ -4,6 +4,8 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import ObjectExplorer from './pages/ObjectExplorer'
 import MapView from './pages/MapView'
+import CountryIntel from './pages/CountryIntel'
+import Briefing from './pages/Briefing'
 import Pipelines from './pages/Pipelines'
 import Ontology from './pages/Ontology'
 import SettingsPage from './pages/SettingsPage'
@@ -23,6 +25,8 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="objects" element={<ObjectExplorer />} />
             <Route path="map" element={<MapView />} />
+            <Route path="country" element={<CountryIntel />} />
+            <Route path="briefing" element={<Briefing />} />
             <Route path="pipelines" element={<Pipelines />} />
             <Route path="ontology" element={<Ontology />} />
             <Route path="settings" element={<SettingsPage />} />

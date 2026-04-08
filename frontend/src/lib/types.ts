@@ -139,6 +139,36 @@ export const RiskMethodology = {
 } as const
 export type RiskMethodology = (typeof RiskMethodology)[keyof typeof RiskMethodology]
 
+export const ThreatLevel = {
+  STABLE: 'STABLE',
+  ELEVATED: 'ELEVATED',
+  HEIGHTENED: 'HEIGHTENED',
+  CRITICAL: 'CRITICAL',
+} as const
+export type ThreatLevel = (typeof ThreatLevel)[keyof typeof ThreatLevel]
+
+export const ShipType = {
+  CARGO: 'CARGO',
+  TANKER: 'TANKER',
+  PASSENGER: 'PASSENGER',
+  FISHING: 'FISHING',
+  MILITARY: 'MILITARY',
+  PLEASURE: 'PLEASURE',
+  TUG: 'TUG',
+  OTHER: 'OTHER',
+} as const
+export type ShipType = (typeof ShipType)[keyof typeof ShipType]
+
+export const FinancialIndicatorType = {
+  STOCK_INDEX: 'STOCK_INDEX',
+  COMMODITY: 'COMMODITY',
+  CURRENCY: 'CURRENCY',
+  CRYPTO: 'CRYPTO',
+  GDP: 'GDP',
+  UNEMPLOYMENT: 'UNEMPLOYMENT',
+} as const
+export type FinancialIndicatorType = (typeof FinancialIndicatorType)[keyof typeof FinancialIndicatorType]
+
 // ── GeoJSON ──────────────────────────────────────────────────────────
 
 export interface GeoJSONPoint {
@@ -252,6 +282,69 @@ export interface PipelineExecution {
   nodeResults: Record<string, unknown> | null
 }
 
+export interface Aircraft {
+  id: string
+  icao24: string
+  callsign: string | null
+  altitude: number | null
+  heading: number | null
+  velocity: number | null
+  onGround: boolean
+  source: string
+  timestamp: string
+  geometry: GeoJSON
+}
+
+export interface Vessel {
+  id: string
+  mmsi: string
+  name: string | null
+  imo: string | null
+  shipType: ShipType
+  speed: number | null
+  course: number | null
+  destination: string | null
+  source: string
+  timestamp: string
+  geometry: GeoJSON
+}
+
+export interface FinancialIndicator {
+  id: string
+  symbol: string
+  name: string
+  indicatorType: FinancialIndicatorType
+  value: number
+  changePct: number | null
+  region: string
+  source: string
+}
+
+export interface CountryIntelProfile {
+  countryCode: string
+  countryName: string
+  regionId: string
+  gseScore: number
+  threatLevel: ThreatLevel
+  escalationAlert: boolean
+  eventCount: number
+  categories: Record<string, { pressure: number; weight: number; eventCount: number; score: number }>
+  gseHistory: Array<{ timestamp: string; gse_score: number }>
+  patterns: Array<{ type: string; description: string; severity: string; confidence: number }>
+  financialIndicators: FinancialIndicator[]
+  activeEvents: HazardEvent[]
+}
+
+export interface GSERegionSummary {
+  regionId: string
+  regionName: string
+  gseScore: number
+  threatLevel: ThreatLevel
+  eventCount: number
+  trend: 'up' | 'down' | 'stable'
+  topCategory: string
+}
+
 // ── Link Types ───────────────────────────────────────────────────────
 
 export interface Affects {
@@ -294,6 +387,9 @@ export const OBJECT_TYPES = [
   'SatellitePass',
   'DataProduct',
   'PipelineExecution',
+  'Aircraft',
+  'Vessel',
+  'FinancialIndicator',
 ] as const
 export type ObjectTypeName = (typeof OBJECT_TYPES)[number]
 
@@ -307,4 +403,7 @@ export const LINK_TYPES = [
   { name: 'CapturedBy', from: 'SatellitePass', to: 'Sensor' },
   { name: 'Contains', from: 'SatellitePass', to: 'DataProduct' },
   { name: 'AssessmentOf', from: 'RiskAssessment', to: 'Region' },
+  { name: 'AircraftLocatedIn', from: 'Aircraft', to: 'Region' },
+  { name: 'VesselNearby', from: 'Vessel', to: 'Region' },
+  { name: 'Measures', from: 'FinancialIndicator', to: 'Region' },
 ] as const

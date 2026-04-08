@@ -54,6 +54,19 @@ from .risk_scoring import (
     compute_composite_risk,
     update_region_risk_scores,
 )
+from sources.fusion_pipeline import (
+    data_fusion_job,
+    data_fusion_schedule,
+    fetch_aircraft_positions,
+    fetch_vessel_positions,
+    fetch_enhanced_fires,
+    fetch_satellite_positions,
+    fetch_enhanced_earthquakes,
+    fetch_weather_alerts,
+    fetch_financial_indicators,
+    fetch_demographic_data,
+    fetch_infrastructure_data,
+)
 
 # ── Schedules ──────────────────────────────────────────────────────────
 
@@ -140,6 +153,16 @@ defs = Definitions(
         aggregate_hazard_data,
         compute_composite_risk,
         update_region_risk_scores,
+        # data_fusion
+        fetch_aircraft_positions,
+        fetch_vessel_positions,
+        fetch_enhanced_fires,
+        fetch_satellite_positions,
+        fetch_enhanced_earthquakes,
+        fetch_weather_alerts,
+        fetch_financial_indicators,
+        fetch_demographic_data,
+        fetch_infrastructure_data,
     ],
     jobs=[
         real_time_hazards_job,
@@ -149,6 +172,7 @@ defs = Definitions(
         air_quality_job,
         social_signals_job,
         risk_scoring_job,
+        data_fusion_job,
     ],
     schedules=[
         hazards_schedule,
@@ -158,5 +182,6 @@ defs = Definitions(
         air_quality_schedule,
         social_signals_schedule,
         risk_scoring_schedule,
+        data_fusion_schedule,
     ],
 )

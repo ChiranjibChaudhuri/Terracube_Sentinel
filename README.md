@@ -1,8 +1,22 @@
-# TerraCube Sentinel — Master Documentation Index
+# TerraCube Sentinel — Full-Spectrum Open Source Intelligence Platform
 
-**Palantir Foundry/Ontology-equivalent system for Earth Observation, Hazard Monitoring, and Planetary Intelligence.**
+**Ontology-native OSINT platform combining Earth Observation, Hazard Monitoring, Financial Intelligence, Movement Tracking, and Planetary Intelligence.**
 
-**Built entirely with open-source software.**
+**Built entirely with open-source software. Rivals World Monitor, OSINT-MONITOR, ShadowBroker, and GeoFinance — but with ontology-native architecture that none of them have.**
+
+---
+
+## Key Features (v0.2.0 — Comprehensive Enhancement)
+
+- **Global Stability Engine (GSE)**: Multi-factor stability scoring per region with 12-category weighted analysis, escalation detection, and 5-tier threat classification (STABLE/ELEVATED/HEIGHTENED/CRITICAL)
+- **Real-Time Data Fusion**: 9 source adapters (OpenSky ADS-B, AIS Vessels, NASA FIRMS, CelesTrak Satellites, USGS Earthquakes, NWS Weather, Yahoo Finance, World Bank, OurAirports) with per-entity TTL caching
+- **AI Briefing Engine**: Automated SITREP, daily briefings, and threat advisories with Markdown/HTML/PDF export
+- **Country Intelligence Dashboard**: Composite risk scoring across 12 categories with radar charts, GSE trending, economic overlays, and region comparison
+- **Enhanced Map Visualization**: Dual-engine map (2D Leaflet + 3D interactive globe) with layer toggles, timeline scrubbing, and click-to-expand entity detail
+- **Notification & Alerting System**: Rule-based alerts with WebSocket push, webhook (Slack/Discord/Teams), email, and SMS channels with deduplication and escalation
+- **17+ Ontology Object Types**: Aircraft, Vessel, FinancialIndicator, ArmedConflict, Displacement, Port, Airport + all original types
+- **60+ Data Sources**: EO, movement tracking, events, finance, infrastructure, social signals
+- **Pattern Detection**: Cross-domain operations, geographic clustering, temporal acceleration, domain spillover detection
 
 ---
 
