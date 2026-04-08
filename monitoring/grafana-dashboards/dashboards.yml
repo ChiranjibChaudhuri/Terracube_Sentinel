@@ -1,0 +1,13 @@
+# Grafana dashboard provisioning config
+apiVersion: 1
+
+providers:
+  - name: TerraCube Sentinel
+    orgId: 1
+    folder: Sentinel
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false
