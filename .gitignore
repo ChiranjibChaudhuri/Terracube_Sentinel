@@ -1,0 +1,34 @@
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Rust
+target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+.env.local
+.env.production
+
+# Data
+eo_cache/
+*.tif
+*.tiff
+*.nc
+*.grib2
+
+# MinIO
+minio_data/
+
