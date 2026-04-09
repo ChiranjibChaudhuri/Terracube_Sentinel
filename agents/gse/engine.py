@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 
-from agents.gse.threat_levels import ThreatLevel, get_threat_level, ESCALATION_THRESHOLD
+from .threat_levels import ThreatLevel, get_threat_level, ESCALATION_THRESHOLD
 
 logger = logging.getLogger(__name__)
 

@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from agents.gse.scoring import GSEScorer
-from agents.gse.threat_levels import ThreatLevel, get_threat_level, get_threat_description
+from gse.scoring import GSEScorer
+from gse.threat_levels import ThreatLevel, get_threat_level, get_threat_description
 
 logger = logging.getLogger(__name__)
 

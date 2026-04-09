@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
-from agents.gse.engine import GSEResult
-from agents.gse.patterns import PatternMatch
-from agents.gse.threat_levels import ThreatLevel
+from gse.engine import GSEResult
+from gse.patterns import PatternMatch
+from gse.threat_levels import ThreatLevel
 
 logger = logging.getLogger(__name__)
 

@@ -7,9 +7,9 @@ import logging
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 
-from agents.gse.scoring import GSEScorer
-from agents.alerting.rules import AlertRuleEngine, AlertNotification
-from agents.alerting.channels import AlertChannel, WebSocketChannel
+from gse.scoring import GSEScorer
+from .rules import AlertRuleEngine, AlertNotification
+from .channels import AlertChannel, WebSocketChannel
 
 logger = logging.getLogger(__name__)
 

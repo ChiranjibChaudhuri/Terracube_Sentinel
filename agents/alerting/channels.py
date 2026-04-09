@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 
 import httpx
 
-from agents.alerting.rules import AlertNotification
+from .rules import AlertNotification
 
 logger = logging.getLogger(__name__)
 

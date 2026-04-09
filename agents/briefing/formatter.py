@@ -6,7 +6,7 @@ import html as html_mod
 import logging
 from datetime import datetime
 
-from agents.briefing.generator import Briefing
+from .generator import Briefing
 
 logger = logging.getLogger(__name__)
 

@@ -2,9 +2,9 @@
 Notification & Alerting System — Real-time alerts based on GSE thresholds.
 """
 
-from agents.alerting.rules import AlertRule, AlertRuleEngine
-from agents.alerting.channels import AlertChannel, WebSocketChannel, WebhookChannel
-from agents.alerting.engine import AlertEngine
+from .rules import AlertRule, AlertRuleEngine
+from .channels import AlertChannel, WebSocketChannel, WebhookChannel
+from .engine import AlertEngine
 
 __all__ = [
     "AlertRule",

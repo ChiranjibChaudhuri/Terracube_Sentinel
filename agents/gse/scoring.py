@@ -9,9 +9,9 @@ from dataclasses import dataclass
 
 import httpx
 
-from agents.gse.engine import GlobalStabilityEngine, GSEEvent, GSEResult
-from agents.gse.threat_levels import ThreatLevel, get_threat_level
-from agents.gse.patterns import PatternDetector, PatternMatch
+from .engine import GlobalStabilityEngine, GSEEvent, GSEResult
+from .threat_levels import ThreatLevel, get_threat_level
+from .patterns import PatternDetector, PatternMatch
 
 logger = logging.getLogger(__name__)
 

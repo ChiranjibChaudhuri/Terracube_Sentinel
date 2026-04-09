@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 from collections import Counter
 
-from agents.gse.engine import GSEEvent, CATEGORY_WEIGHTS
+from .engine import GSEEvent, CATEGORY_WEIGHTS
 
 logger = logging.getLogger(__name__)
 

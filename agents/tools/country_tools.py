@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from agents.gse.scoring import GSEScorer
+from gse.scoring import GSEScorer
 
 logger = logging.getLogger(__name__)
 
