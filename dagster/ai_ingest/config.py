@@ -8,19 +8,32 @@ from dataclasses import dataclass, field
 
 @dataclass
 class LLMSettings:
-    """LLM connection and inference settings."""
+    """LLM connection and inference settings.
 
+    Supports two backends:
+      - "ollama"   : local Ollama server (default)
+      - "openai"   : any OpenAI-compatible API (ZAI, OpenAI, etc.)
+    """
+
+    backend: str = field(
+        default_factory=lambda: os.environ.get("LLM_BACKEND", "openai")
+    )
     base_url: str = field(
         default_factory=lambda: os.environ.get(
-            "OLLAMA_BASE_URL", "http://localhost:11434"
+            "LLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4"
+        )
+    )
+    api_key: str = field(
+        default_factory=lambda: os.environ.get(
+            "ZAI_API_KEY", os.environ.get("OPENAI_API_KEY", "")
         )
     )
     model: str = field(
-        default_factory=lambda: os.environ.get("LLM_MODEL", "llama3")
+        default_factory=lambda: os.environ.get("LLM_MODEL", "glm-5-turbo")
     )
     temperature: float = 0.2
     max_tokens: int = 2048
-    timeout: int = 30  # seconds
+    timeout: int = 60  # seconds
 
 
 @dataclass
