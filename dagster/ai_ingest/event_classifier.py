@@ -182,7 +182,7 @@ def classify_event(
     )
 
     result = llm.extract_json(prompt, system=CLASSIFICATION_SYSTEM_PROMPT)
-    if result is None:
+    if result is None or not isinstance(result, dict):
         return _rule_based_classify(raw_event)
 
     # Validate required fields
@@ -190,6 +190,14 @@ def classify_event(
         if key not in result:
             logger.warning("LLM classification missing '%s', falling back", key)
             return _rule_based_classify(raw_event)
+
+    # Validate object_type is a known ODL type
+    if result["object_type"] not in ODL_OBJECT_TYPES:
+        logger.warning(
+            "LLM returned unknown object_type '%s', falling back",
+            result["object_type"],
+        )
+        return _rule_based_classify(raw_event)
 
     return result
 

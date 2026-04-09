@@ -46,6 +46,7 @@ from .social_signals import (
     fetch_gdelt_events,
     fetch_gdelt_tone,
     normalize_social_signals,
+    load_social_signals_to_foundry,
 )
 from .risk_scoring import (
     risk_scoring_job,
@@ -166,6 +167,7 @@ defs = Definitions(
         fetch_gdelt_events,
         fetch_gdelt_tone,
         normalize_social_signals,
+        load_social_signals_to_foundry,
         # risk_scoring
         aggregate_hazard_data,
         compute_composite_risk,

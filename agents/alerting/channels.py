@@ -144,10 +144,10 @@ class EmailChannel(AlertChannel):
         self.smtp_user = os.getenv("SMTP_USER", "")
         self.smtp_pass = os.getenv("SMTP_PASS", "")
         self.from_addr = os.getenv("ALERT_FROM_EMAIL", "sentinel@terracube.io")
-        self.to_addrs = os.getenv("ALERT_TO_EMAILS", "").split(",")
+        self.to_addrs = [a.strip() for a in os.getenv("ALERT_TO_EMAILS", "").split(",") if a.strip()]
 
     async def send(self, notification: AlertNotification) -> bool:
-        if not self.smtp_host or not self.to_addrs[0]:
+        if not self.smtp_host or not self.to_addrs:
             logger.info("Email not configured — skipping")
             return False
 

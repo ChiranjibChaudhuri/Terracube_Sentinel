@@ -151,9 +151,9 @@ def fetch_gdelt_events() -> list[dict[str, Any]]:
                 })
 
         except httpx.HTTPError as exc:
-            log.warning(f"GDELT events fetch failed: {exc}")
+            log.warning("GDELT events fetch failed: %s", exc)
 
-    log.info(f"GDELT events: {len(records)} articles")
+    log.info("GDELT events: %d articles", len(records))
     return records
 
 
@@ -204,9 +204,9 @@ def fetch_gdelt_tone() -> list[dict[str, Any]]:
                     })
 
             except httpx.HTTPError as exc:
-                log.warning(f"GDELT tone fetch failed for '{keyword}': {exc}")
+                log.warning("GDELT tone fetch failed for '%s': %s", keyword, exc)
 
-    log.info(f"GDELT tone: {len(records)} tone entries")
+    log.info("GDELT tone: %d tone entries", len(records))
     return records
 
 
@@ -272,10 +272,58 @@ def normalize_social_signals(
             deduped.append(rec)
 
     log.info(
-        f"Normalized {len(all_records)} -> {len(deduped)} social signal "
-        f"records after dedup"
+        "Normalized %d -> %d social signal records after dedup",
+        len(all_records), len(deduped),
     )
     return deduped
+
+
+@asset(
+    group_name="social_signals",
+    compute_kind="api",
+    deps=[normalize_social_signals],
+)
+def load_social_signals_to_foundry(
+    normalize_social_signals: list[dict[str, Any]],
+) -> dict[str, int]:
+    """Load normalized social signal records into Open Foundry via REST API."""
+    log = get_dagster_logger()
+    headers = {
+        "Authorization": f"Bearer {FOUNDRY_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    created = 0
+    failed = 0
+
+    with httpx.Client(timeout=30, base_url=FOUNDRY_API_URL) as client:
+        for rec in normalize_social_signals:
+            payload = {
+                "objectType": "SocialSignal",
+                "properties": {
+                    "source": rec.get("source", "gdelt"),
+                    "eventType": rec.get("event_type", ""),
+                    "title": rec.get("title", ""),
+                    "url": rec.get("url", ""),
+                    "toneScore": rec.get("tone_score", 0.0),
+                    "sentiment": rec.get("sentiment", "NEUTRAL"),
+                    "geometry": rec.get("geometry", {}),
+                    "timestamp": rec.get("timestamp", ""),
+                    "keywords": rec.get("keywords", []),
+                },
+            }
+            try:
+                resp = client.post("/objects", json=payload, headers=headers)
+                resp.raise_for_status()
+                created += 1
+            except httpx.HTTPError as exc:
+                failed += 1
+                if failed <= 5:
+                    log.warning("Failed to load social signal: %s", exc)
+
+    if failed > 5:
+        log.warning("Suppressed %d additional social signal load failures", failed - 5)
+    log.info("load_social_signals_to_foundry: %d created, %d failed", created, failed)
+    return {"created": created, "failed": failed}
 
 
 # ── Job ────────────────────────────────────────────────────────────────
@@ -283,7 +331,5 @@ def normalize_social_signals(
 social_signals_job = define_asset_job(
     name="social_signals_job",
     selection=AssetSelection.groups("social_signals"),
-    description="Fetch disaster-related events and tone from GDELT, normalise into social signals",
+    description="Fetch disaster-related events and tone from GDELT, normalise into social signals, load to Foundry",
 )
-
-# Schedule: every 15 minutes — cron_schedule="*/15 * * * *"

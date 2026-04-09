@@ -200,6 +200,9 @@ def extract_entities(
         List of ``{object_type, properties, links}`` dicts ready for
         Open Foundry ingestion.
     """
+    if not text or not text.strip():
+        return []
+
     if llm is None:
         llm = LLMClient()
 
@@ -207,10 +210,23 @@ def extract_entities(
     if region_context:
         prompt += f"\n\nRegion context: {json.dumps(region_context, default=str)}"
 
-    entities = llm.extract_json(prompt, system=EXTRACTION_SYSTEM_PROMPT)
-    if entities is None:
-        # Fallback: regex-based lightweight extraction
+    raw_result = llm.extract_json(prompt, system=EXTRACTION_SYSTEM_PROMPT)
+    if raw_result is None or not isinstance(raw_result, dict):
+        # LLM returned nothing, a list, or unparseable text — use regex fallback
+        if isinstance(raw_result, list):
+            logger.warning("LLM returned a list instead of dict; falling back to regex")
         entities = _regex_extract(text)
+    else:
+        entities = raw_result
+        # Ensure required keys exist even if LLM omitted them
+        entities.setdefault("people", [])
+        entities.setdefault("organizations", [])
+        entities.setdefault("locations", [])
+        entities.setdefault("dates", [])
+        entities.setdefault("event_types", [])
+        entities.setdefault("casualties", {})
+        entities.setdefault("damage", {})
+        entities.setdefault("summary", text[:200])
 
     entities = _enrich_locations(entities)
     return _map_to_ontology_objects(entities)

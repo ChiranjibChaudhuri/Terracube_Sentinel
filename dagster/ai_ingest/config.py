@@ -35,6 +35,10 @@ class LLMSettings:
     max_tokens: int = 2048
     timeout: int = 60  # seconds
 
+    def __post_init__(self) -> None:
+        if self.backend not in ("ollama", "openai"):
+            raise ValueError(f"Invalid LLM_BACKEND: {self.backend!r}. Must be 'ollama' or 'openai'.")
+
 
 @dataclass
 class QualityThresholds:
@@ -75,6 +79,10 @@ STRUCTURED_SOURCES = frozenset({
     "celestrak",
     "open_meteo",
     "openaq",
+    # Pipeline aliases (fetch_raw_events uses these as fallback source names)
+    "hazard",
+    "aircraft",
+    "vessel",
 })
 
 # Sources that produce unstructured / semi-structured data (need LLM)
@@ -98,6 +106,10 @@ SOURCE_RELIABILITY: dict[str, float] = {
     "news": 0.50,
     "social": 0.35,
     "report": 0.70,
+    # Pipeline aliases
+    "hazard": 0.85,
+    "aircraft": 0.85,
+    "vessel": 0.85,
 }
 
 

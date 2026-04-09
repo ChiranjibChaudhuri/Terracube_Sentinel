@@ -11,74 +11,72 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # ─── PostgreSQL (requires postgres_exporter sidecar in production) ───────
-  - job_name: postgres
-    static_configs:
-      - targets: ["postgres:5432"]
-    metrics_path: /metrics
-    scrape_interval: 30s
-
-  # ─── MinIO ──────────────────────────────────────────────────────────────
+  # ─── MinIO (natively exposes Prometheus metrics) ────────────────────────
   - job_name: minio
     metrics_path: /minio/v2/metrics/cluster
     static_configs:
       - targets: ["minio:9000"]
     scrape_interval: 30s
 
-  # ─── Valkey / Redis-compatible ──────────────────────────────────────────
-  - job_name: valkey
-    static_configs:
-      - targets: ["valkey:6379"]
-    scrape_interval: 30s
-
-  # ─── Keycloak ──────────────────────────────────────────────────────────
-  - job_name: keycloak
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["keycloak:8180"]
-    scrape_interval: 30s
-
-  # ─── OpenMetadata ──────────────────────────────────────────────────────
-  - job_name: openmetadata
-    metrics_path: /api/v1/system/version
-    static_configs:
-      - targets: ["openmetadata:8585"]
-    scrape_interval: 60s
-
-  # ─── Grafana (port 3002, not 3000) ─────────────────────────────────────
+  # ─── Grafana (natively exposes /metrics) ────────────────────────────────
   - job_name: grafana
     static_configs:
       - targets: ["grafana:3002"]
     scrape_interval: 30s
 
-  # ─── Loki ──────────────────────────────────────────────────────────────
+  # ─── Loki (natively exposes /metrics) ──────────────────────────────────
   - job_name: loki
     static_configs:
       - targets: ["loki:3100"]
     metrics_path: /metrics
     scrape_interval: 30s
 
-  # ─── Elasticsearch (OpenMetadata search backend) ───────────────────────
-  - job_name: elasticsearch
-    metrics_path: /_prometheus/metrics
-    static_configs:
-      - targets: ["openmetadata-elasticsearch:9200"]
-    scrape_interval: 30s
-
-  # ─── TypeDB ────────────────────────────────────────────────────────────
-  - job_name: typedb
-    static_configs:
-      - targets: ["typedb:1729"]
-    scrape_interval: 30s
-
-  # ─── Dagster Webserver ─────────────────────────────────────────────────
+  # ─── Dagster Webserver (health endpoint) ────────────────────────────
   - job_name: dagster
+    metrics_path: /server_info
     static_configs:
       - targets: ["dagster-webserver:3000"]
-    scrape_interval: 30s
+    scrape_interval: 60s
 
-  # ─── AI Agents (FastAPI) ───────────────────────────────────────────────
+  # ─── AI Agents (FastAPI health check) ──────────────────────────────
   - job_name: agents
+    metrics_path: /health
     static_configs:
       - targets: ["agents:8001"]
     scrape_interval: 30s
+
+  # ─── NOTE: The following services require additional exporters ──────────
+  # To enable PostgreSQL metrics, add postgres_exporter sidecar:
+  #   image: prometheuscommunity/postgres-exporter
+  #   environment:
+  #     DATA_SOURCE_NAME: "postgresql://user:pass@postgres:5432/sentinel?sslmode=disable"
+  #
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+
+  # To enable Valkey/Redis metrics, add redis_exporter sidecar:
+  #   image: oliver006/redis_exporter
+  #   environment:
+  #     REDIS_ADDR: "valkey:6379"
+  #     REDIS_PASSWORD: "${VALKEY_PASSWORD}"
+  #
+  # - job_name: valkey
+  #   static_configs:
+  #     - targets: ["redis-exporter:9121"]
+
+  # Keycloak metrics (requires metrics-enabled config in production):
+  # - job_name: keycloak
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets: ["keycloak:8180"]
+
+  # Elasticsearch (requires prometheus exporter plugin):
+  # - job_name: elasticsearch
+  #   metrics_path: /_prometheus/metrics
+  #   static_configs:
+  #     - targets: ["openmetadata-elasticsearch:9200"]
+
+  # TypeDB does not expose Prometheus metrics natively.
+  # Dagster webserver does not expose /metrics by default.
+  # Agents FastAPI requires prometheus-fastapi-instrumentator for /metrics.

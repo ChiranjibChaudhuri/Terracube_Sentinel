@@ -119,7 +119,7 @@ class GSEScorer:
                         region_id=props.get("region_id", "GLOBAL"),
                         source=props.get("source", ""),
                         latitude=coords[1] if len(coords) > 1 else 0,
-                        longitude=coords[0] if coords else 0,
+                        longitude=coords[0] if len(coords) > 0 else 0,
                     ))
             except Exception as e:
                 logger.warning("Failed to fetch hazard events: %s", e)
@@ -154,7 +154,7 @@ class GSEScorer:
                         region_id=props.get("region_id", "GLOBAL"),
                         source=props.get("source", ""),
                         latitude=coords[1] if len(coords) > 1 else 0,
-                        longitude=coords[0] if coords else 0,
+                        longitude=coords[0] if len(coords) > 0 else 0,
                     ))
             except Exception as e:
                 logger.warning("Failed to fetch armed conflicts: %s", e)

@@ -344,9 +344,11 @@ def load_to_foundry(ai_map_to_ontology: list[dict[str, Any]]) -> dict[str, Any]:
                 loaded += 1
             except httpx.HTTPError as exc:
                 failed += 1
-                if failed <= 3:
+                if failed <= 5:
                     log.warning("Failed to load object to Foundry: %s", exc)
 
+    if failed > 5:
+        log.warning("load_to_foundry: suppressed %d additional failure warnings", failed - 5)
     log.info("load_to_foundry: %d loaded, %d failed", loaded, failed)
     return {"loaded": loaded, "failed": failed}
 

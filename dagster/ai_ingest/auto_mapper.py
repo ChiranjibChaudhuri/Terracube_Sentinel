@@ -208,19 +208,18 @@ def map_to_ontology(
     # 1. Check in-memory cache for a learned mapping for this source
     cached = _mapping_cache.get(source)
     if cached:
+        field_map = cached.get("field_map", {})
+        cached_obj_type = cached.get("object_type", "HazardEvent")
         properties = {}
-        for raw_field, odl_field in cached.items():
+        for raw_field, odl_field in field_map.items():
             val = raw_data.get(raw_field)
             if val is not None:
                 properties[odl_field] = val
         if properties:
             properties["aiProcessedAt"] = datetime.now(timezone.utc).isoformat()
             properties["aiMappingMethod"] = "cached"
-            # We don't know object_type from cache alone; use rule-based to get it
-            rule = _apply_rule_based(raw_data, source)
-            obj_type = rule["object_type"] if rule else "HazardEvent"
             return {
-                "object_type": obj_type,
+                "object_type": cached_obj_type,
                 "properties": properties,
                 "links": {},
             }
@@ -241,15 +240,22 @@ def map_to_ontology(
             # Learn the mapping for future items from this source
             if isinstance(raw_data, dict) and isinstance(props, dict):
                 learned: dict[str, str] = {}
+                matched_odl_keys: set[str] = set()
                 for raw_key in raw_data:
                     for odl_key in props:
                         if (
-                            raw_data[raw_key] is not None
+                            odl_key not in matched_odl_keys
+                            and raw_data[raw_key] is not None
                             and raw_data[raw_key] == props.get(odl_key)
                         ):
                             learned[raw_key] = odl_key
+                            matched_odl_keys.add(odl_key)
+                            break  # one raw_key maps to one odl_key
                 if learned:
-                    _mapping_cache[source] = learned
+                    _mapping_cache[source] = {
+                        "field_map": learned,
+                        "object_type": result["object_type"],
+                    }
 
             return result
 

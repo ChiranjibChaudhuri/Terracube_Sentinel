@@ -23,9 +23,13 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Unified interface to Ollama / OpenAI-compatible LLM backends."""
 
+    # Re-probe availability after this many seconds when marked down
+    AVAILABILITY_TTL = 300  # 5 minutes
+
     def __init__(self, settings: LLMSettings | None = None) -> None:
         self._settings = settings or LLMSettings()
         self._available: bool | None = None  # lazy probe
+        self._available_checked_at: float = 0.0
         self._total_prompt_tokens = 0
         self._total_completion_tokens = 0
         self._total_calls = 0
@@ -43,9 +47,22 @@ class LLMClient:
         }
 
     def is_available(self) -> bool:
-        """Check whether the LLM backend is reachable (cached after first probe)."""
+        """Check whether the LLM backend is reachable.
+
+        Results are cached.  When the backend is marked *down*, the cache
+        expires after ``AVAILABILITY_TTL`` seconds so transient failures
+        don't permanently disable the client in long-running processes.
+        """
+        now = time.monotonic()
         if self._available is not None:
-            return self._available
+            # If previously marked available, trust the cache
+            if self._available:
+                return True
+            # If marked unavailable, allow re-probe after TTL
+            if now - self._available_checked_at < self.AVAILABILITY_TTL:
+                return False
+            # TTL expired — re-probe below
+            logger.info("LLM availability TTL expired, re-probing %s", self._settings.base_url)
 
         try:
             with httpx.Client(timeout=5) as client:
@@ -53,7 +70,6 @@ class LLMClient:
                     resp = client.get(f"{self._settings.base_url}/api/tags")
                     self._available = resp.status_code == 200
                 else:
-                    # OpenAI-compatible: hit /models endpoint
                     headers = self._auth_headers()
                     resp = client.get(
                         f"{self._settings.base_url}/models",
@@ -62,6 +78,12 @@ class LLMClient:
                     self._available = resp.status_code == 200
         except Exception:
             self._available = False
+
+        self._available_checked_at = now
+        if self._available:
+            logger.info("LLM backend is available: %s (%s)", self._settings.backend, self._settings.model)
+        else:
+            logger.warning("LLM backend unavailable: %s — will retry in %ds", self._settings.base_url, self.AVAILABILITY_TTL)
         return self._available
 
     # ── core methods ──────────────────────────────────────────────────
@@ -76,11 +98,12 @@ class LLMClient:
         else:
             return self._complete_openai(prompt, system)
 
-    def extract_json(self, prompt: str, system: str = "") -> dict | None:
+    def extract_json(self, prompt: str, system: str = "") -> dict | list | None:
         """Send a prompt and parse the response as JSON.
 
         If the LLM returns text wrapped around a JSON block, the method
         attempts to extract the first ``{...}`` or ``[...]`` substring.
+        Returns a dict, a list, or None if parsing fails.
         """
         raw = self.complete(prompt, system)
         if raw is None:
@@ -189,11 +212,12 @@ class LLMClient:
                 time.sleep(wait)
 
         logger.error("LLM request failed after 3 attempts: %s", last_exc)
-        self._available = False  # mark down so subsequent calls skip quickly
+        self._available = False
+        self._available_checked_at = time.monotonic()
         return None
 
     @staticmethod
-    def _parse_json(text: str) -> dict | None:
+    def _parse_json(text: str) -> dict | list | None:
         """Best-effort JSON extraction from LLM output."""
         text = text.strip()
         # Strip markdown code fences (```json ... ``` or ``` ... ```)

@@ -65,10 +65,12 @@ def score_data_quality(
     consistency_pass = 0
 
     # Lat/lng range check
-    lat = props.get("latitude") or (props.get("geometry", {}) or {}).get("coordinates", [None, None])
-    lng = None
-    if isinstance(lat, list) and len(lat) >= 2:
-        lng, lat = lat[0], lat[1]  # GeoJSON is [lng, lat]
+    lat = props.get("latitude")
+    lng = props.get("longitude")
+    if lat is None or lng is None:
+        coords = (props.get("geometry", {}) or {}).get("coordinates")
+        if isinstance(coords, list) and len(coords) >= 2:
+            lng, lat = coords[0], coords[1]  # GeoJSON is [lng, lat]
 
     if isinstance(lat, (int, float)):
         consistency_checks += 1

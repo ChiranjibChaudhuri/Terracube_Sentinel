@@ -337,6 +337,10 @@ services:
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
       REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
+      LLM_BACKEND: "${LLM_BACKEND:-openai}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.z.ai/api/coding/paas/v4}"
+      LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
+      ZAI_API_KEY: "${ZAI_API_KEY:-}"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:
@@ -367,6 +371,10 @@ services:
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
       REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
+      LLM_BACKEND: "${LLM_BACKEND:-openai}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.z.ai/api/coding/paas/v4}"
+      LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
+      ZAI_API_KEY: "${ZAI_API_KEY:-}"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:
