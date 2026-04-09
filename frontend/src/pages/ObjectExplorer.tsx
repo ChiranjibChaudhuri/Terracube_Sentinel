@@ -1,5 +1,6 @@
 import { useState, useMemo, Fragment } from 'react'
-import { Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Search, ChevronDown, ChevronRight, ExternalLink, Database, Filter } from 'lucide-react'
 import { OBJECT_TYPES, LINK_TYPES } from '../lib/types'
 import type { ObjectTypeName } from '../lib/types'
 import { getMockDataByType } from '../lib/mock-data'
@@ -41,141 +42,182 @@ export default function ObjectExplorer() {
     LINK_TYPES.filter((l) => l.from === typeName || l.to === typeName)
 
   return (
-    <div className="space-y-4">
+    <motion.div
+      className="space-y-5"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Database className="w-5 h-5 text-cyan-400" />
+          <h1 className="text-lg font-bold text-white">Object Explorer</h1>
+          <span
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(56,189,248,0.08)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}
+          >
+            {filtered.length} objects
+          </span>
+        </div>
+      </div>
+
+      {/* Search & Filter */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
             placeholder="Search by name, type, or ID..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-            className="w-full pl-10 pr-4 py-2 bg-[#1e293b] border border-slate-700 rounded-md text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-[var(--text-muted)] focus:outline-none transition-colors focus-ring"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--border-active)' }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)' }}
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value as ObjectTypeName | ''); setPage(0) }}
-          className="px-3 py-2 bg-[#1e293b] border border-slate-700 rounded-md text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
-        >
-          <option value="">All Types</option>
-          {OBJECT_TYPES.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+          <select
+            value={typeFilter}
+            onChange={(e) => { setTypeFilter(e.target.value as ObjectTypeName | ''); setPage(0) }}
+            className="pl-9 pr-8 py-2.5 rounded-lg text-sm text-white appearance-none focus:outline-none transition-colors focus-ring"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
+          >
+            <option value="">All Types</option>
+            {OBJECT_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className="bg-[#1e293b] rounded-lg border border-slate-700/50 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-slate-400 text-xs border-b border-slate-700/30">
-              <th className="w-8" />
-              <th className="text-left px-4 py-2">ID</th>
-              <th className="text-left px-4 py-2">Type</th>
-              <th className="text-left px-4 py-2">Name / Key Property</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paged.map((obj) => {
-              const record = obj as Record<string, unknown>
-              const id = record.id as string
-              const typeName = record._type as string
-              const name = (record.name ?? record.pipelineName ?? record.message ?? id) as string
-              const expanded = expandedId === id
-              const links = getLinksForType(typeName)
-              const allEntries = Object.entries(record).filter(([k]) => k !== '_type')
+      {/* Data Table */}
+      <div className="glass-card overflow-hidden">
+        {paged.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <Database className="w-10 h-10 mb-3" style={{ color: 'var(--text-muted)' }} />
+            <p className="text-sm font-medium text-white mb-1">No objects found</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Try adjusting your search or filter criteria</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+                <th className="w-8" />
+                <th className="text-left px-5 py-3 font-semibold">ID</th>
+                <th className="text-left px-5 py-3 font-semibold">Type</th>
+                <th className="text-left px-5 py-3 font-semibold">Name / Key Property</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((obj) => {
+                const record = obj as Record<string, unknown>
+                const id = record.id as string
+                const typeName = record._type as string
+                const name = (record.name ?? record.pipelineName ?? record.message ?? id) as string
+                const expanded = expandedId === id
+                const links = getLinksForType(typeName)
+                const allEntries = Object.entries(record).filter(([k]) => k !== '_type')
 
-              return (
-                <Fragment key={id}>
-                  <tr
-                    className="border-b border-slate-700/20 hover:bg-slate-800/30 cursor-pointer"
-                    onClick={() => setExpandedId(expanded ? null : id)}
-                  >
-                    <td className="pl-3">
-                      {expanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                      )}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-400">{id}</td>
-                    <td className="px-4 py-2">
-                      <span className="px-2 py-0.5 rounded bg-slate-700 text-xs text-slate-300">
-                        {typeName}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-slate-200 truncate max-w-xs">{String(name)}</td>
-                  </tr>
-                  {expanded && (
-                    <tr className="bg-slate-800/20">
-                      <td colSpan={4} className="px-6 py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">Properties</h4>
-                            <dl className="space-y-1 text-xs">
-                              {allEntries.map(([k, v]) => (
-                                <div key={k} className="flex gap-2">
-                                  <dt className="text-slate-500 w-36 flex-shrink-0">{k}</dt>
-                                  <dd className="text-slate-300 break-all">
-                                    {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—')}
-                                  </dd>
-                                </div>
-                              ))}
-                            </dl>
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">Links</h4>
-                            {links.length === 0 ? (
-                              <p className="text-xs text-slate-500">No link types</p>
-                            ) : (
-                              <ul className="space-y-1 text-xs">
-                                {links.map((l) => (
-                                  <li key={l.name} className="flex items-center gap-2 text-slate-300">
-                                    <ExternalLink className="w-3 h-3 text-cyan-400" />
-                                    <span className="text-cyan-400">{l.name}</span>
-                                    <span className="text-slate-500">
-                                      {l.from === typeName ? `-> ${l.to}` : `<- ${l.from}`}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
+                return (
+                  <Fragment key={id}>
+                    <tr
+                      className="table-row-hover cursor-pointer"
+                      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                      onClick={() => setExpandedId(expanded ? null : id)}
+                    >
+                      <td className="pl-4">
+                        {expanded ? (
+                          <ChevronDown className="w-3.5 h-3.5" style={{ color: '#38bdf8' }} />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                        )}
                       </td>
+                      <td className="px-5 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{id}</td>
+                      <td className="px-5 py-3">
+                        <span
+                          className="px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                          style={{ background: 'rgba(99,130,191,0.08)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+                        >
+                          {typeName}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-white truncate max-w-xs font-medium">{String(name)}</td>
                     </tr>
-                  )}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
+                    {expanded && (
+                      <tr style={{ background: 'rgba(56,189,248,0.02)' }}>
+                        <td colSpan={4} className="px-8 py-5">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <h4 className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Properties</h4>
+                              <dl className="space-y-1.5 text-xs">
+                                {allEntries.map(([k, v]) => (
+                                  <div key={k} className="flex gap-3">
+                                    <dt className="w-36 flex-shrink-0 font-mono" style={{ color: 'var(--text-muted)' }}>{k}</dt>
+                                    <dd className="text-white break-all">
+                                      {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—')}
+                                    </dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            </div>
+                            <div>
+                              <h4 className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Relationships</h4>
+                              {links.length === 0 ? (
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No link types defined</p>
+                              ) : (
+                                <ul className="space-y-2 text-xs">
+                                  {links.map((l) => (
+                                    <li key={l.name} className="flex items-center gap-2">
+                                      <ExternalLink className="w-3 h-3 text-cyan-400" />
+                                      <span className="text-cyan-400 font-semibold">{l.name}</span>
+                                      <span style={{ color: 'var(--text-muted)' }}>
+                                        {l.from === typeName ? `→ ${l.to}` : `← ${l.from}`}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>{filtered.length} objects</span>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+        <span>{filtered.length} total objects</span>
+        <div className="flex items-center gap-1">
           <button
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
-            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 focus-ring"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
           >
-            Prev
+            Previous
           </button>
-          <span className="px-2 py-1">
+          <span className="px-3 py-1.5 text-sm font-mono">
             {page + 1} / {totalPages}
           </span>
           <button
             disabled={page >= totalPages - 1}
             onClick={() => setPage((p) => p + 1)}
-            className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 focus-ring"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
           >
             Next
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
-

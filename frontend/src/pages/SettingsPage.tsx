@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion'
+import { Settings, Server, Palette, Info, Shield, Activity, Database, Cpu } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 
 export default function SettingsPage() {
@@ -5,50 +7,77 @@ export default function SettingsPage() {
   const setApiEndpoint = useAppStore((s) => s.setApiEndpoint)
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <motion.div
+      className="max-w-2xl space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2.5">
+        <Settings className="w-5 h-5 text-cyan-400" />
+        <h1 className="text-lg font-bold text-white">Settings</h1>
+      </div>
+
       {/* API Configuration */}
-      <section className="bg-[#1e293b] rounded-lg border border-slate-700/50 p-5">
-        <h2 className="text-sm font-semibold text-white mb-4">API Configuration</h2>
-        <div className="space-y-3">
+      <section className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Server className="w-4 h-4 text-cyan-400" />
+          <h2 className="text-sm font-bold text-white">API Configuration</h2>
+        </div>
+        <div className="space-y-4">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">GraphQL Endpoint</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>GraphQL Endpoint</label>
             <input
               type="text"
               value={apiEndpoint}
               onChange={(e) => setApiEndpoint(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:outline-none focus:border-cyan-500"
+              className="w-full px-4 py-2.5 rounded-lg text-sm text-white focus:outline-none transition-colors focus-ring"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)' }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--border-active)' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)' }}
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">REST API Base URL</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>REST API Base URL</label>
             <input
               type="text"
               readOnly
               value="http://localhost:8080/api/v1"
-              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-500"
+              className="w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none cursor-not-allowed"
+              style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
             />
           </div>
         </div>
       </section>
 
-      {/* Theme */}
-      <section className="bg-[#1e293b] rounded-lg border border-slate-700/50 p-5">
-        <h2 className="text-sm font-semibold text-white mb-4">Appearance</h2>
+      {/* Appearance */}
+      <section className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Palette className="w-4 h-4 text-cyan-400" />
+          <h2 className="text-sm font-bold text-white">Appearance</h2>
+        </div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-slate-200">Dark Theme</p>
-            <p className="text-xs text-slate-500">Toggle between dark and light modes</p>
+            <p className="text-sm font-medium text-white">Dark Theme</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Toggle between dark and light modes</p>
           </div>
-          <div className="w-10 h-6 bg-cyan-500 rounded-full relative cursor-not-allowed opacity-60">
-            <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
+          <div
+            className="w-11 h-6 rounded-full relative cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #38bdf8, #06b6d4)' }}
+          >
+            <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-md" />
           </div>
         </div>
       </section>
 
       {/* About */}
-      <section className="bg-[#1e293b] rounded-lg border border-slate-700/50 p-5">
-        <h2 className="text-sm font-semibold text-white mb-4">About</h2>
-        <div className="space-y-2 text-sm text-slate-300">
+      <section className="glass-card p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Info className="w-4 h-4 text-cyan-400" />
+          <h2 className="text-sm font-bold text-white">About TerraCube Sentinel</h2>
+        </div>
+        <div className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <p>
             <strong className="text-white">TerraCube Sentinel</strong> is an open-source Palantir
             Foundry alternative for Earth Observation and planetary intelligence.
@@ -57,14 +86,29 @@ export default function SettingsPage() {
             Built on Open Foundry, TypeDB, PostGIS, Dagster, and AI agents, it provides a complete
             platform for ingesting, linking, analyzing, and acting on geospatial and environmental data.
           </p>
-          <div className="pt-2 border-t border-slate-700/30 text-xs text-slate-500 space-y-1">
-            <p>Version: 0.1.0</p>
-            <p>Ontology: geo-sentinel (10 object types, 9 link types)</p>
-            <p>Pipelines: 7 Dagster pipelines</p>
-            <p>AI Agents: 6 specialized agents + orchestrator</p>
-          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mt-5 pt-5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          {[
+            { label: 'Version', value: '0.1.0', icon: Shield },
+            { label: 'Ontology', value: 'geo-sentinel', icon: Database },
+            { label: 'Pipelines', value: '7 Dagster', icon: Activity },
+            { label: 'AI Agents', value: '6 + orchestrator', icon: Cpu },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center gap-3 p-3 rounded-lg"
+              style={{ background: 'rgba(99,130,191,0.04)', border: '1px solid var(--border-subtle)' }}
+            >
+              <item.icon className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                <p className="text-sm font-medium text-white">{item.value}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
-    </div>
+    </motion.div>
   )
 }

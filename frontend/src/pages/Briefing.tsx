@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { FileText, Download, Clock, Shield } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Clock, Download, FileText, Shield } from 'lucide-react'
 import { mockGSERegions } from '../lib/mock-data'
 
 function generateSyntheticBriefing(type: string) {
@@ -57,59 +58,96 @@ export default function Briefing() {
   const briefing = generateSyntheticBriefing(briefingType)
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <motion.div
+      className="space-y-6 max-w-4xl"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h1 className="text-lg font-bold text-white flex items-center gap-2.5">
           <FileText className="w-5 h-5 text-cyan-400" /> Intelligence Briefings
         </h1>
         <div className="flex items-center gap-2">
-          <div className="flex bg-[#1e293b] border border-slate-700 rounded-lg overflow-hidden">
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}>
             <button
               onClick={() => setBriefingType('daily')}
-              className={`px-3 py-1.5 text-xs ${briefingType === 'daily' ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400'}`}
+              className="px-4 py-2 text-xs font-semibold transition-all"
+              style={{
+                background: briefingType === 'daily' ? 'rgba(56,189,248,0.1)' : 'transparent',
+                color: briefingType === 'daily' ? '#38bdf8' : 'var(--text-muted)',
+              }}
             >
               Daily Briefing
             </button>
             <button
               onClick={() => setBriefingType('sitrep')}
-              className={`px-3 py-1.5 text-xs ${briefingType === 'sitrep' ? 'bg-cyan-500/20 text-cyan-400' : 'text-slate-400'}`}
+              className="px-4 py-2 text-xs font-semibold transition-all"
+              style={{
+                background: briefingType === 'sitrep' ? 'rgba(56,189,248,0.1)' : 'transparent',
+                color: briefingType === 'sitrep' ? '#38bdf8' : 'var(--text-muted)',
+              }}
             >
               SITREP
             </button>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1e293b] border border-slate-700 rounded-lg text-xs text-slate-300 hover:text-white transition-colors">
+          <button
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all focus-ring"
+            style={{
+              background: 'var(--bg-card)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border-default)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
+          >
             <Download className="w-3.5 h-3.5" /> Export
           </button>
         </div>
       </div>
 
       {/* Briefing document */}
-      <div className="bg-[#0f172a] border border-slate-700/50 rounded-lg overflow-hidden">
-        <div className="bg-[#1e293b] px-6 py-4 border-b border-slate-700/50">
-          <h2 className="text-base font-bold text-cyan-400">{briefing.title}</h2>
-          <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> UNCLASSIFIED</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date().toISOString().slice(0, 19)}Z</span>
+      <div className="glass-card overflow-hidden">
+        {/* Document header */}
+        <div className="px-8 py-5" style={{ background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))', borderBottom: '1px solid var(--border-subtle)' }}>
+          <h2 className="text-base font-bold gradient-text-cyan">{briefing.title}</h2>
+          <div className="flex items-center gap-5 mt-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <span className="flex items-center gap-1.5">
+              <Shield className="w-3 h-3" />
+              <span className="badge-live badge-live-green">UNCLASSIFIED</span>
+            </span>
+            <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {new Date().toISOString().slice(0, 19)}Z</span>
             <span>TerraCube Sentinel Automated Briefing</span>
           </div>
         </div>
-        <div className="px-6 py-4 space-y-6">
+
+        {/* Document body */}
+        <div className="px-8 py-6 space-y-6">
           {briefing.sections.map((section, i) => (
-            <div key={i}>
-              <h3 className="text-sm font-semibold text-sky-300 mb-2">{section.title}</h3>
-              <div className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08, duration: 0.3 }}
+            >
+              <h3 className="text-sm font-bold text-cyan-400 mb-2.5">{section.title}</h3>
+              <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                 {section.content.split('**').map((part, j) =>
-                  j % 2 === 1 ? <strong key={j} className="text-amber-300">{part}</strong> : part
+                  j % 2 === 1 ? <strong key={j} className="text-amber-300 font-semibold">{part}</strong> : part
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
-        <div className="px-6 py-3 border-t border-slate-700/50 text-center">
-          <p className="text-xs text-slate-500 italic">Generated by TerraCube Sentinel Intelligence Platform</p>
+
+        {/* Document footer */}
+        <div className="px-8 py-3 text-center" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <p className="text-[10px] italic" style={{ color: 'var(--text-muted)' }}>
+            Generated by TerraCube Sentinel Intelligence Platform &mdash; GLM-5 Turbo AI Engine
+          </p>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
