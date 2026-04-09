@@ -1,6 +1,6 @@
 import { formatDistanceStrict } from 'date-fns'
 import { motion } from 'framer-motion'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -30,9 +30,33 @@ import {
   mockSensors,
   mockVessels,
 } from '../lib/mock-data'
-import type { GeoJSONPoint, PipelineExecution } from '../lib/types'
+import {
+  getAiStatus,
+  getAlertsPending,
+  getAlertsWebSocketUrl,
+  getFusionAwareness,
+  getGseRegions,
+  getHealth,
+  getPipelineExecutions,
+  type AiStatusResponse,
+  type AlertSocketMessage,
+  type AwarenessFeature,
+  type GseRegionSummaryResponse,
+  type HealthResponse,
+  type PendingAlertResponse,
+} from '../lib/api'
+import useWebSocket from '../hooks/useWebSocket'
+import type {
+  Aircraft,
+  GeoJSONPoint,
+  HazardEvent,
+  PipelineExecution,
+  RiskAssessment,
+  SatellitePass,
+  Vessel,
+} from '../lib/types'
 
-const REFERENCE_NOW = new Date('2026-04-08T12:00:00Z')
+const REFERENCE_NOW = new Date()
 const REFERENCE_NOW_MS = REFERENCE_NOW.getTime()
 
 const GLASS_PANEL =
@@ -623,26 +647,509 @@ function GaugeMetricCard({
   )
 }
 
+type DashboardRegion = {
+  regionId: string
+  regionName: string
+  gseScore: number
+  threatLevel: string
+  eventCount: number
+  trend: 'up' | 'down' | 'stable'
+  topCategory: string
+  escalationAlert: boolean
+}
+
+const FALLBACK_SYSTEM_HEALTH: HealthResponse = {
+  status: 'degraded',
+  agents: ['hazard_sentinel', 'predictive_analyst', 'pattern_discovery'],
+  version: '0.2.0',
+}
+
+const FALLBACK_AI_PIPELINE: AiStatusResponse = {
+  llm: {
+    available: false,
+    model: 'fallback-offline',
+    base_url: 'http://localhost:11434',
+    stats: {},
+  },
+  features: {
+    llm_classification: true,
+    anomaly_detection: true,
+    auto_mapping: true,
+  },
+  quality_thresholds: {
+    min_completeness: 0.75,
+    min_overall_quality: 0.7,
+    duplicate_similarity_threshold: 0.92,
+  },
+}
+
+const FALLBACK_PENDING_ALERTS: PendingAlertResponse[] = mockAlerts.map((alert, index) => ({
+  alertId: alert.id,
+  rule: `${alert.severity.toLowerCase()}_watch`,
+  priority: alert.severity,
+  title: alert.message.split('. ')[0] ?? alert.message,
+  message: alert.message,
+  regionId: mockGSERegions[index % mockGSERegions.length]?.regionId ?? 'global',
+  timestamp: alert.issuedAt,
+}))
+
+const FALLBACK_GSE_REGIONS: GseRegionSummaryResponse[] = mockGSERegions.map((region) => ({
+  regionId: region.regionId,
+  gseScore: region.gseScore,
+  threatLevel: region.threatLevel,
+  eventCount: region.eventCount,
+  escalationAlert: region.trend === 'up' && region.gseScore >= 55,
+  contributingFactors: [
+    {
+      category: region.topCategory,
+      eventCount: region.eventCount,
+      pressure: Number(region.gseScore.toFixed(1)),
+      weight: 0.55,
+    },
+    {
+      category: 'cross_domain_signal',
+      eventCount: Math.max(1, Math.round(region.eventCount * 0.45)),
+      pressure: Number(Math.max(0, region.gseScore - 8).toFixed(1)),
+      weight: 0.3,
+    },
+    {
+      category: 'operator_watchlist',
+      eventCount: Math.max(1, Math.round(region.eventCount * 0.25)),
+      pressure: Number(Math.max(0, region.gseScore - 14).toFixed(1)),
+      weight: 0.15,
+    },
+  ],
+}))
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {}
+}
+
+function asString(value: unknown, fallback: string) {
+  return typeof value === 'string' && value.length > 0 ? value : fallback
+}
+
+function asNullableString(value: unknown) {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function asNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeEntityType(value: unknown) {
+  return String(value ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase()
+}
+
+function asPointGeometry(value: unknown): GeoJSONPoint | null {
+  const geometry = asRecord(value)
+  if (geometry.type !== 'Point' || !Array.isArray(geometry.coordinates)) {
+    return null
+  }
+
+  const [lng, lat] = geometry.coordinates
+  if (typeof lng !== 'number' || typeof lat !== 'number') {
+    return null
+  }
+
+  return {
+    type: 'Point',
+    coordinates: [lng, lat],
+  }
+}
+
+function formatRegionName(regionId: string) {
+  return regionId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function normalizeSeverity(value: unknown): HazardEvent['severity'] {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'LOW':
+    case 'MODERATE':
+    case 'HIGH':
+    case 'CRITICAL':
+      return String(value).toUpperCase() as HazardEvent['severity']
+    default:
+      return 'MODERATE'
+  }
+}
+
+function severityToAlertLevel(severity: HazardEvent['severity']): HazardEvent['alertLevel'] {
+  switch (severity) {
+    case 'CRITICAL':
+      return 'RED'
+    case 'HIGH':
+      return 'ORANGE'
+    case 'MODERATE':
+      return 'YELLOW'
+    default:
+      return 'GREEN'
+  }
+}
+
+function normalizeProcessingLevel(value: unknown): SatellitePass['processingLevel'] {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'RAW':
+    case 'L1A':
+    case 'L1B':
+    case 'L2A':
+    case 'L2B':
+    case 'L3':
+      return String(value).toUpperCase() as SatellitePass['processingLevel']
+    default:
+      return 'L2A'
+  }
+}
+
+function normalizeHazards(features: AwarenessFeature[]): HazardEvent[] {
+  return features
+    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'hazardevent')
+    .map((feature, index) => {
+      const properties = asRecord(feature.properties)
+      const geometry = asPointGeometry(feature.geometry)
+      if (!geometry) return null
+
+      const severity = normalizeSeverity(properties.severity)
+      const confidenceValue = asNumber(properties.confidence)
+
+      return {
+        id: asString(properties.id, `hazard-${index}`),
+        type: asString(properties.type ?? properties.name, 'WILDFIRE').toUpperCase() as HazardEvent['type'],
+        severity,
+        geometry,
+        startTime: asString(properties.startTime ?? properties.timestamp, REFERENCE_NOW.toISOString()),
+        endTime: asNullableString(properties.endTime ?? properties.expiresAt),
+        confidence: confidenceValue === null
+          ? 0.85
+          : confidenceValue > 1
+            ? clamp(confidenceValue / 100, 0, 1)
+            : clamp(confidenceValue, 0, 1),
+        alertLevel: severityToAlertLevel(severity),
+      }
+    })
+    .filter((e): e is NonNullable<typeof e> => e !== null) as HazardEvent[]
+}
+
+function normalizeSatellitePasses(features: AwarenessFeature[]): SatellitePass[] {
+  return features
+    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'satellitepass')
+    .map((feature, index) => {
+      const properties = asRecord(feature.properties)
+
+      return {
+        id: asString(properties.id, `satellite-pass-${index}`),
+        acquisitionTime: asString(properties.acquisitionTime ?? properties.timestamp, REFERENCE_NOW.toISOString()),
+        processingLevel: normalizeProcessingLevel(properties.processingLevel),
+        cloudCover: asNumber(properties.cloudCover),
+        stacItemUrl: asNullableString(properties.stacItemUrl),
+      }
+    })
+}
+
+function normalizeAircraftTracks(features: AwarenessFeature[]): Aircraft[] {
+  return features
+    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'aircraft')
+    .map((feature, index) => {
+      const properties = asRecord(feature.properties)
+      const geometry = asPointGeometry(feature.geometry)
+      if (!geometry) return null
+
+      return {
+        id: asString(properties.id, `aircraft-${index}`),
+        icao24: asString(properties.icao24, `icao-${index}`),
+        callsign: asNullableString(properties.callsign),
+        altitude: asNumber(properties.altitude),
+        heading: asNumber(properties.heading),
+        velocity: asNumber(properties.velocity),
+        onGround: Boolean(properties.onGround),
+        source: asString(properties.source, 'awareness'),
+        timestamp: asString(properties.timestamp, REFERENCE_NOW.toISOString()),
+        geometry,
+      }
+    })
+    .filter(Boolean) as Aircraft[]
+}
+
+function normalizeVesselTracks(features: AwarenessFeature[]): Vessel[] {
+  return features
+    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'vessel')
+    .map((feature, index) => {
+      const properties = asRecord(feature.properties)
+      const geometry = asPointGeometry(feature.geometry)
+      if (!geometry) return null
+
+      return {
+        id: asString(properties.id, `vessel-${index}`),
+        mmsi: asString(properties.mmsi, `mmsi-${index}`),
+        name: asNullableString(properties.name),
+        imo: asNullableString(properties.imo),
+        shipType: asString(properties.shipType, 'OTHER').toUpperCase() as Vessel['shipType'],
+        speed: asNumber(properties.speed),
+        course: asNumber(properties.course),
+        destination: asNullableString(properties.destination),
+        source: asString(properties.source, 'awareness'),
+        timestamp: asString(properties.timestamp, REFERENCE_NOW.toISOString()),
+        geometry,
+      }
+    })
+    .filter(Boolean) as Vessel[]
+}
+
+function buildRiskAssessmentsFromHazards(hazards: HazardEvent[]): RiskAssessment[] {
+  if (hazards.length === 0) {
+    return mockRiskAssessments
+  }
+
+  const grouped = new Map<string, HazardEvent[]>()
+  for (const hazard of hazards) {
+    const bucket = grouped.get(hazard.type) ?? []
+    bucket.push(hazard)
+    grouped.set(hazard.type, bucket)
+  }
+
+  return Array.from(grouped.entries()).map(([hazardType, items], index) => ({
+    id: `risk-live-${index}-${hazardType.toLowerCase()}`,
+    hazardType: hazardType as RiskAssessment['hazardType'],
+    riskScore: Number(
+      clamp(
+        average(items.map((item) => HAZARD_SEVERITY_WEIGHT[item.severity] * 22 + (item.confidence ?? 0.85) * 12)),
+      ).toFixed(1),
+    ),
+    methodology: 'COMPOSITE',
+    confidence: Number(average(items.map((item) => item.confidence ?? 0.85)).toFixed(2)),
+    timestamp: items[0]?.startTime ?? REFERENCE_NOW.toISOString(),
+  }))
+}
+
+function normalizeDashboardRegions(regions: GseRegionSummaryResponse[]): DashboardRegion[] {
+  return regions.map((region) => {
+    const topFactor = [...region.contributingFactors]
+      .sort((left, right) => (right.weightedPressure ?? right.pressure * right.weight) - (left.weightedPressure ?? left.pressure * left.weight))[0]
+
+    return {
+      regionId: region.regionId,
+      regionName: formatRegionName(region.regionId),
+      gseScore: region.gseScore,
+      threatLevel: region.threatLevel,
+      eventCount: region.eventCount,
+      trend: region.escalationAlert ? 'up' : region.gseScore <= 20 ? 'down' : 'stable',
+      topCategory: topFactor?.category ?? 'cross_domain_signal',
+      escalationAlert: region.escalationAlert,
+    }
+  })
+}
+
+function buildLiveFeed({
+  hazards,
+  alerts,
+  pipelines,
+  satellitePasses,
+  aircraftTracks,
+  vesselTracks,
+}: {
+  hazards: HazardEvent[]
+  alerts: PendingAlertResponse[]
+  pipelines: PipelineExecution[]
+  satellitePasses: SatellitePass[]
+  aircraftTracks: Aircraft[]
+  vesselTracks: Vessel[]
+}) {
+  const latestPipelines = [...pipelines]
+    .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
+    .slice(0, 2)
+
+  return [
+    ...hazards.slice(0, 4).map((event) => ({
+      id: event.id,
+      kind: 'hazard' as const,
+      title: `${formatHazardLabel(event.type)} signal crossed ${event.severity.toLowerCase()} threshold`,
+      detail: `${nearestRegionLabel(event.geometry as GeoJSONPoint)} theatre | ${Math.round((event.confidence ?? 0.85) * 100)}% confidence`,
+      timestamp: event.startTime,
+      status: event.severity,
+      live: REFERENCE_NOW_MS - new Date(event.startTime).getTime() <= 12 * 60 * 60 * 1000,
+    })),
+    ...alerts.slice(0, 2).map((alert) => ({
+      id: alert.alertId,
+      kind: 'alert' as const,
+      title: alert.title,
+      detail: `${formatRegionName(alert.regionId)} | ${alert.message}`,
+      timestamp: alert.timestamp,
+      status: alert.priority,
+      live: true,
+    })),
+    ...latestPipelines.map((pipeline) => ({
+      id: pipeline.id,
+      kind: 'pipeline' as const,
+      title: `${pipeline.pipelineName} ${pipeline.status.toLowerCase()}`,
+      detail:
+        pipeline.status === 'FAILED'
+          ? String(pipeline.nodeResults?.error ?? 'Recovery playbook running')
+          : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'autonomous execution in progress' : 'run closed cleanly'}`,
+      timestamp: pipeline.startedAt,
+      status: pipeline.status,
+      live: pipeline.status === 'RUNNING',
+    })),
+    {
+      id: 'orbital-pass',
+      kind: 'orbital' as const,
+      title: 'Sentinel orbital pass ingested into hazard mesh',
+      detail: `${satellitePasses[0]?.processingLevel ?? 'L2A'} scene registered with ${satellitePasses[0]?.cloudCover ?? 'n/a'}% cloud cover`,
+      timestamp: satellitePasses[0]?.acquisitionTime ?? REFERENCE_NOW.toISOString(),
+      status: 'LIVE',
+      live: true,
+    },
+    {
+      id: 'tracking-corridor',
+      kind: 'tracking' as const,
+      title: 'Maritime and airborne corridors cross-correlated',
+      detail: `${aircraftTracks.length} aircraft and ${vesselTracks.length} vessels fused into movement graph`,
+      timestamp: aircraftTracks[0]?.timestamp ?? vesselTracks[0]?.timestamp ?? REFERENCE_NOW.toISOString(),
+      status: 'MONITOR',
+      live: true,
+    },
+  ]
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+    .slice(0, 8)
+}
+
 export default function Dashboard() {
-  const activeHazards = [...mockHazardEvents]
+  const [systemHealth, setSystemHealth] = useState<HealthResponse>(FALLBACK_SYSTEM_HEALTH)
+  const [aiPipeline, setAiPipeline] = useState<AiStatusResponse>(FALLBACK_AI_PIPELINE)
+  const [gseRegions, setGseRegions] = useState<GseRegionSummaryResponse[]>(FALLBACK_GSE_REGIONS)
+  const [alerts, setAlerts] = useState<PendingAlertResponse[]>(FALLBACK_PENDING_ALERTS)
+  const [hazards, setHazards] = useState<HazardEvent[]>(mockHazardEvents)
+  const [riskAssessments, setRiskAssessments] = useState<RiskAssessment[]>(mockRiskAssessments)
+  const [satellitePasses, setSatellitePasses] = useState<SatellitePass[]>(mockSatellitePasses)
+  const [aircraftTracks, setAircraftTracks] = useState<Aircraft[]>(mockAircraft)
+  const [vesselTracks, setVesselTracks] = useState<Vessel[]>(mockVessels)
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineExecution[]>(mockPipelineExecutions)
+  const [feed, setFeed] = useState<FeedItem[]>(() =>
+    buildLiveFeed({
+      hazards: mockHazardEvents,
+      alerts: FALLBACK_PENDING_ALERTS,
+      pipelines: mockPipelineExecutions,
+      satellitePasses: mockSatellitePasses,
+      aircraftTracks: mockAircraft,
+      vesselTracks: mockVessels,
+    }),
+  )
+  const [awarenessFeatureCount, setAwarenessFeatureCount] = useState(
+    mockHazardEvents.length + mockSatellitePasses.length + mockAircraft.length + mockVessels.length,
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    void getHealth(controller.signal).then(setSystemHealth).catch(() => undefined)
+    void getAiStatus(controller.signal).then(setAiPipeline).catch(() => undefined)
+    void getGseRegions(controller.signal).then((regions) => {
+      if (regions.length > 0) {
+        setGseRegions(regions)
+      }
+    }).catch(() => undefined)
+    void getAlertsPending(controller.signal).then((pendingAlerts) => {
+      if (pendingAlerts.length > 0) {
+        setAlerts(pendingAlerts)
+      }
+    }).catch(() => undefined)
+    void getPipelineExecutions(controller.signal).then((runs) => {
+      if (runs.length > 0) {
+        setPipelineRuns(runs)
+      }
+    }).catch(() => undefined)
+    void getFusionAwareness(undefined, controller.signal).then((awareness) => {
+      setAwarenessFeatureCount(awareness.metadata.totalFeatures)
+
+      const nextHazards = normalizeHazards(awareness.features)
+      if (nextHazards.length > 0) {
+        setHazards(nextHazards)
+        setRiskAssessments(buildRiskAssessmentsFromHazards(nextHazards))
+      }
+
+      const nextSatellitePasses = normalizeSatellitePasses(awareness.features)
+      if (nextSatellitePasses.length > 0) {
+        setSatellitePasses(nextSatellitePasses)
+      }
+
+      const nextAircraftTracks = normalizeAircraftTracks(awareness.features)
+      if (nextAircraftTracks.length > 0) {
+        setAircraftTracks(nextAircraftTracks)
+      }
+
+      const nextVesselTracks = normalizeVesselTracks(awareness.features)
+      if (nextVesselTracks.length > 0) {
+        setVesselTracks(nextVesselTracks)
+      }
+    }).catch(() => undefined)
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
+
+  const { isConnected: isAlertSocketConnected } = useWebSocket<AlertSocketMessage>(getAlertsWebSocketUrl(), {
+    parseMessage: (raw) => JSON.parse(raw) as AlertSocketMessage,
+    onMessage: (message) => {
+      if (message.type !== 'alert') return
+
+      setAlerts((currentAlerts) =>
+        [
+          {
+            alertId: message.data.alertId,
+            rule: message.data.rule,
+            priority: message.data.priority,
+            title: message.data.title,
+            message: message.data.message,
+            regionId: message.data.regionId,
+            timestamp: message.data.timestamp,
+          },
+          ...currentAlerts.filter((alert) => alert.alertId !== message.data.alertId),
+        ]
+          .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
+          .slice(0, 20),
+      )
+    },
+  })
+
+  useEffect(() => {
+    setFeed(
+      buildLiveFeed({
+        hazards,
+        alerts,
+        pipelines: pipelineRuns,
+        satellitePasses,
+        aircraftTracks,
+        vesselTracks,
+      }),
+    )
+  }, [aircraftTracks, alerts, hazards, pipelineRuns, satellitePasses, vesselTracks])
+
+  const dashboardRegions = normalizeDashboardRegions(gseRegions)
+  const activeHazards = [...hazards]
     .filter((event) => !event.endTime || new Date(event.endTime) >= REFERENCE_NOW)
     .sort((left, right) => HAZARD_SEVERITY_WEIGHT[right.severity] - HAZARD_SEVERITY_WEIGHT[left.severity])
 
-  const activeAlerts = mockAlerts.filter((alert) => !alert.expiresAt || new Date(alert.expiresAt) >= REFERENCE_NOW)
+  const activeAlerts = [...alerts].sort(
+    (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
+  )
   const activeSensors = mockSensors.filter((sensor) => sensor.status === 'ACTIVE')
-  const recentPipelines = [...mockPipelineExecutions].sort(
+  const recentPipelines = [...pipelineRuns].sort(
     (left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime(),
   )
   const latestPipelineRuns = recentPipelines.slice(0, 6)
-  const pipelineSuccessRate =
-    recentPipelines.filter((pipeline) => pipeline.status === 'SUCCEEDED').length / recentPipelines.length
+  const pipelineSuccessRate = recentPipelines.length > 0
+    ? recentPipelines.filter((pipeline) => pipeline.status === 'SUCCEEDED').length / recentPipelines.length
+    : 0
 
-  const escalationRegions = mockGSERegions.filter((region) => region.trend === 'up' && region.gseScore >= 55)
-  const highestGse = Math.max(...mockGSERegions.map((region) => region.gseScore))
+  const escalationRegions = dashboardRegions.filter((region) => region.trend === 'up' && region.gseScore >= 55)
+  const highestGse = dashboardRegions.length > 0 ? Math.max(...dashboardRegions.map((region) => region.gseScore)) : 0
   const threatLoad = clamp(
     activeHazards.reduce((total, event) => total + HAZARD_SEVERITY_WEIGHT[event.severity] * 8, 0),
   )
-  const aiHealth = Math.round(pipelineSuccessRate * 100)
+  const aiHealth = clamp(
+    Math.round(((pipelineSuccessRate * 100) * 0.6) + (aiPipeline.llm.available ? 40 : 18)),
+  )
   const sensorCoverage = Math.round((activeSensors.length / mockSensors.length) * 100)
 
   const activeGroundSensors = activeSensors.filter((sensor) => sensor.type !== 'SATELLITE' && sensor.lastReading)
@@ -660,10 +1167,10 @@ export default function Dashboard() {
   )
   const freshnessScore = clamp(100 - freshnessLagMinutes / 2.1)
   const concordanceScore = clamp(
-    average(mockRiskAssessments.map((assessment) => (assessment.confidence ?? 0.85) * 100)) + 6,
+    average(riskAssessments.map((assessment) => (assessment.confidence ?? 0.85) * 100)) + 6,
   )
   const anomalyCaptureScore = clamp(
-    70 + activeAlerts.length * 2 + mockSatellitePasses.filter((pass) => (pass.cloudCover ?? 100) < 15).length * 3,
+    70 + activeAlerts.length * 2 + satellitePasses.filter((pass) => (pass.cloudCover ?? 100) < 15).length * 3,
   )
   const dataFidelity = Math.round(average([completenessScore, freshnessScore, concordanceScore, anomalyCaptureScore]))
 
@@ -671,7 +1178,7 @@ export default function Dashboard() {
     (asset) => asset.exposureLevel === 'HIGH' || asset.exposureLevel === 'EXTREME',
   ).length
 
-  const watchRegions = [...mockGSERegions].sort((left, right) => right.gseScore - left.gseScore).slice(0, 5)
+  const watchRegions = [...dashboardRegions].sort((left, right) => right.gseScore - left.gseScore).slice(0, 5)
   const escalatingTheatreLabel = escalationRegions.length
     ? escalationRegions.map((region) => region.regionName).join(', ')
     : 'No theatres currently escalating'
@@ -689,7 +1196,7 @@ export default function Dashboard() {
       label: 'AI Pipeline Health',
       value: aiHealth,
       display: `${aiHealth}%`,
-      detail: `${latestPipelineRuns.filter((pipeline) => pipeline.status === 'RUNNING').length} orchestration lanes active`,
+      detail: `${latestPipelineRuns.filter((pipeline) => pipeline.status === 'RUNNING').length} orchestration lanes active | ${aiPipeline.llm.model}`,
       accent: '#67c8ff',
       series: DIAL_SPARKLINES.aiHealth,
     },
@@ -715,33 +1222,33 @@ export default function Dashboard() {
     {
       name: 'Ingestion Mesh',
       icon: Satellite,
-      health: 97,
-      latency: '3.2 min median',
-      detail: 'Satellite, weather, and seismic inputs normal',
+      health: systemHealth.status === 'healthy' ? 97 : 76,
+      latency: `${satellitePasses.length} live orbital sources`,
+      detail: `${systemHealth.agents.length} agents reporting healthy status`,
       accent: '#67c8ff',
     },
     {
       name: 'Feature Fusion',
       icon: Database,
-      health: 94,
-      latency: '840 ms join',
-      detail: 'Entity resolution and spatial overlays within SLA',
+      health: clamp(78 + watchRegions.length * 3),
+      latency: `${awarenessFeatureCount} fused entities`,
+      detail: 'Entity resolution and regional overlays refreshed from situational awareness API',
       accent: '#4fd9c6',
     },
     {
       name: 'Hazard Classifier',
       icon: Activity,
-      health: 96,
-      latency: '420 ms inference',
-      detail: 'Classification confidence remains above target',
+      health: aiPipeline.features.llm_classification ? 96 : 74,
+      latency: aiPipeline.llm.available ? aiPipeline.llm.model : 'LLM unavailable',
+      detail: aiPipeline.features.anomaly_detection ? 'Anomaly detection pipeline enabled' : 'Anomaly detection disabled',
       accent: '#77e19c',
     },
     {
       name: 'Decision Support',
       icon: Shield,
-      health: 91,
-      latency: '1.6 sec advisory',
-      detail: 'Escalation queue elevated in two theaters',
+      health: clamp(92 - activeAlerts.length * 4 + (isAlertSocketConnected ? 8 : -12)),
+      latency: `${activeAlerts.length} pending alerts`,
+      detail: isAlertSocketConnected ? 'Live alert relay connected to /ws/alerts' : 'Live alert relay disconnected',
       accent: '#fb923c',
     },
   ]
@@ -781,59 +1288,6 @@ export default function Dashboard() {
     },
   ]
 
-  const liveFeed: FeedItem[] = [
-    ...activeHazards.slice(0, 4).map((event) => ({
-      id: event.id,
-      kind: 'hazard' as const,
-      title: `${formatHazardLabel(event.type)} signal crossed ${event.severity.toLowerCase()} threshold`,
-      detail: `${nearestRegionLabel(event.geometry as GeoJSONPoint)} theatre | ${(event.confidence ?? 0) * 100}% confidence`,
-      timestamp: event.startTime,
-      status: event.severity,
-      live: REFERENCE_NOW_MS - new Date(event.startTime).getTime() <= 12 * 60 * 60 * 1000,
-    })),
-    ...activeAlerts.slice(0, 2).map((alert) => ({
-      id: alert.id,
-      kind: 'alert' as const,
-      title: alert.message,
-      detail: alert.actionTaken ?? 'Operator acknowledgement pending',
-      timestamp: alert.issuedAt,
-      status: alert.severity,
-      live: true,
-    })),
-    ...latestPipelineRuns.slice(0, 2).map((pipeline) => ({
-      id: pipeline.id,
-      kind: 'pipeline' as const,
-      title: `${pipeline.pipelineName} ${pipeline.status.toLowerCase()}`,
-      detail:
-        pipeline.status === 'FAILED'
-          ? String(pipeline.nodeResults?.error ?? 'Recovery playbook running')
-          : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'autonomous execution in progress' : 'run closed cleanly'}`,
-      timestamp: pipeline.startedAt,
-      status: pipeline.status,
-      live: pipeline.status === 'RUNNING',
-    })),
-    {
-      id: 'orbital-pass',
-      kind: 'orbital' as const,
-      title: 'Sentinel orbital pass ingested into hazard mesh',
-      detail: `${mockSatellitePasses[0]?.processingLevel} scene registered with ${mockSatellitePasses[0]?.cloudCover}% cloud cover`,
-      timestamp: mockSatellitePasses[0]?.acquisitionTime ?? REFERENCE_NOW.toISOString(),
-      status: 'LIVE',
-      live: true,
-    },
-    {
-      id: 'tracking-corridor',
-      kind: 'tracking' as const,
-      title: 'Maritime and airborne corridors cross-correlated',
-      detail: `${mockAircraft.length} aircraft and ${mockVessels.length} vessels fused into movement graph`,
-      timestamp: mockAircraft[0]?.timestamp ?? REFERENCE_NOW.toISOString(),
-      status: 'MONITOR',
-      live: true,
-    },
-  ]
-    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
-    .slice(0, 8)
-
   const feedTone: Record<FeedItem['kind'], { color: string; bg: string; border: string }> = {
     hazard: { color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.22)' },
     alert: { color: '#fb7185', bg: 'rgba(251, 113, 133, 0.12)', border: 'rgba(251, 113, 133, 0.22)' },
@@ -872,12 +1326,23 @@ export default function Dashboard() {
               <div className="flex flex-wrap gap-2">
                 <LiveBadge label="LIVE MESH" tone="green" />
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
+                  <span
+                    className={cn(
+                      'h-2.5 w-2.5 rounded-full',
+                      isAlertSocketConnected
+                        ? 'bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.85)]'
+                        : 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.8)]',
+                    )}
+                  />
+                  {isAlertSocketConnected ? 'Alerts socket connected' : 'Alerts socket disconnected'}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
                   <Globe className="h-3.5 w-3.5 text-cyan-300" />
                   {watchRegions.length} theatres under watch
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
                   <Satellite className="h-3.5 w-3.5 text-teal-300" />
-                  {mockSatellitePasses.length} orbital passes queued
+                  {satellitePasses.length} orbital passes queued
                 </span>
               </div>
             </div>
@@ -898,10 +1363,10 @@ export default function Dashboard() {
               <div className={cn(SUB_PANEL, 'p-4')}>
                 <p className={KICKER_CLASS}>Tracking mesh</p>
                 <p className="mt-3 text-[30px] font-bold leading-none text-white">
-                  {mockAircraft.length + mockVessels.length}
+                  {aircraftTracks.length + vesselTracks.length}
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-400">
-                  {mockAircraft.length} airborne and {mockVessels.length} maritime tracks correlated
+                  {aircraftTracks.length} airborne and {vesselTracks.length} maritime tracks correlated
                 </p>
               </div>
             </div>
@@ -1037,7 +1502,7 @@ export default function Dashboard() {
           <div className="mt-5 space-y-3">
             {activeHazards.slice(0, 6).map((event) => {
               const severityStyle = SEVERITY_STYLES[event.alertLevel]
-              const matchingAssessment = mockRiskAssessments.find((assessment) => assessment.hazardType === event.type)
+              const matchingAssessment = riskAssessments.find((assessment) => assessment.hazardType === event.type)
               const exposure = impactedAssetEstimate(matchingAssessment?.riskScore ?? 58)
               const isLive = REFERENCE_NOW_MS - new Date(event.startTime).getTime() <= 12 * 60 * 60 * 1000
 
@@ -1131,7 +1596,7 @@ export default function Dashboard() {
           />
 
           <div className="mt-5 space-y-3">
-            {liveFeed.map((item) => {
+            {feed.map((item) => {
               const tone = feedTone[item.kind]
               const statusTone = getStatusTone(item.status)
 
@@ -1186,7 +1651,11 @@ export default function Dashboard() {
             aside={
               <div className="text-right">
                 <p className={KICKER_CLASS}>Current state</p>
-                <p className="mt-2 text-sm font-semibold text-white">Nominal with elevated decision queue</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {systemHealth.status === 'healthy'
+                    ? `Live backend healthy | ${aiPipeline.llm.available ? 'LLM online' : 'LLM degraded'}`
+                    : 'Fallback telemetry active'}
+                </p>
               </div>
             }
           />
@@ -1389,7 +1858,7 @@ export default function Dashboard() {
             aside={
               <div className="flex flex-wrap items-center gap-2">
                 {(['SUCCEEDED', 'RUNNING', 'FAILED'] as const).map((status) => {
-                  const count = mockPipelineExecutions.filter((pipeline) => pipeline.status === status).length
+                  const count = pipelineRuns.filter((pipeline) => pipeline.status === status).length
                   const tone = PIPELINE_STATUS_STYLES[status]
 
                   return (

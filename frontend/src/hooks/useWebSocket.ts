@@ -111,3 +111,5 @@ export function useWebSocket<TMessage = string>(
     isConnected: status === 'open',
   }
 }
+
+export default useWebSocket

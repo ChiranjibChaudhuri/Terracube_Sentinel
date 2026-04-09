@@ -1,3 +1,5 @@
+import type { PipelineExecution } from './types'
+
 const DEFAULT_API_URL = 'http://localhost:8000'
 
 type QueryValue = string | number | boolean | null | undefined
@@ -54,6 +56,10 @@ type RequestOptions = {
   headers?: HeadersInit
   parseAs?: 'json' | 'text'
   signal?: AbortSignal
+}
+
+interface ObjectCollectionResponse<T> {
+  data?: T[]
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -362,6 +368,20 @@ export function getFusionAwareness(params?: AwarenessQueryParams, signal?: Abort
 
 export function getPendingAlerts(signal?: AbortSignal) {
   return request<PendingAlertResponse[]>('/alerts/pending', { signal })
+}
+
+export function getAlertsPending(signal?: AbortSignal) {
+  return getPendingAlerts(signal)
+}
+
+export function getPipelineExecutions(signal?: AbortSignal) {
+  return request<ObjectCollectionResponse<PipelineExecution>>('/api/v1/objects', {
+    params: {
+      objectType: 'PipelineExecution',
+      pageSize: 100,
+    },
+    signal,
+  }).then((response) => response.data ?? [])
 }
 
 export function getAlertHistory(limit?: number, signal?: AbortSignal) {
