@@ -65,7 +65,9 @@ async def get_situational_awareness(
     # Try loading from cache as fallback
     if not features:
         try:
-            from dagster.sources.cache import FusionCache
+            import sys as _sys, os as _os
+            _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(__file__))), "dagster"))
+            from sources.cache import FusionCache
             cache = FusionCache()
             for entity_type in types_to_query:
                 cached = cache.get_all(entity_type)

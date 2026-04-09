@@ -3,7 +3,7 @@ Multi-source weather fusion adapter.
 Combines NWS alerts, tropical cyclone tracking, and severe weather data.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 

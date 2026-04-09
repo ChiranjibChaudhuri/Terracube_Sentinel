@@ -17,17 +17,17 @@ from dagster import (
     DefaultScheduleStatus,
 )
 
-from dagster.sources.base_adapter import GeoJSONFeature
-from dagster.sources.cache import FusionCache
-from dagster.sources.opensky_adapter import OpenSkyAdapter
-from dagster.sources.ais_adapter import AISAdapter
-from dagster.sources.firms_adapter import FIRMSAdapter
-from dagster.sources.celestrak_adapter import CelesTrakAdapter
-from dagster.sources.eq_adapter import EarthquakeAdapter
-from dagster.sources.weather_adapter import WeatherAlertAdapter
-from dagster.sources.finance_adapter import FinanceAdapter
-from dagster.sources.demographic_adapter import DemographicAdapter
-from dagster.sources.infrastructure_adapter import InfrastructureDataAdapter
+from .base_adapter import GeoJSONFeature
+from .cache import FusionCache
+from .opensky_adapter import OpenSkyAdapter
+from .ais_adapter import AISAdapter
+from .firms_adapter import FIRMSAdapter
+from .celestrak_adapter import CelesTrakAdapter
+from .eq_adapter import EarthquakeAdapter
+from .weather_adapter import WeatherAlertAdapter
+from .finance_adapter import FinanceAdapter
+from .demographic_adapter import DemographicAdapter
+from .infrastructure_adapter import InfrastructureDataAdapter
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ Fetches vessel positions from public AIS data feeds.
 """
 
 from dataclasses import dataclass
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import os
 import httpx
 import logging

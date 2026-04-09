@@ -1,7 +1,6 @@
-from dagster import DefaultScheduleStatus
 """TerraCube Sentinel Dagster pipelines — geo-hazard monitoring."""
 
-from dagster import Definitions, ScheduleDefinition
+from dagster import Definitions, ScheduleDefinition, DefaultScheduleStatus
 
 from .real_time_hazards import (
     real_time_hazards_job,

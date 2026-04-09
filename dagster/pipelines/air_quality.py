@@ -66,48 +66,65 @@ def _now_iso() -> str:
 
 @asset(group_name="air_quality", compute_kind="api")
 def fetch_openaq_measurements() -> list[dict[str, Any]]:
-    """Fetch latest PM2.5, PM10, O3, NO2 measurements from OpenAQ API v2."""
+    """Fetch latest PM2.5, PM10, O3, NO2 measurements from OpenAQ API v3."""
     log = get_dagster_logger()
-    url = "https://api.openaq.org/v2/latest"
     records: list[dict[str, Any]] = []
 
-    with httpx.Client(timeout=30) as client:
+    with httpx.Client(timeout=30, base_url="https://api.openaq.org/v3") as client:
         for city_info in MONITORED_CITIES:
             try:
+                # v3: search locations near coordinates, then fetch latest measurements
                 resp = client.get(
-                    url,
+                    "/locations",
                     params={
-                        "city": city_info["city"],
-                        "limit": 50,
+                        "coordinates": f"{city_info['lat']},{city_info['lon']}",
+                        "radius": 25000,
+                        "limit": 10,
                     },
                     headers={"Accept": "application/json"},
                 )
                 resp.raise_for_status()
                 data = resp.json()
 
-                for result in data.get("results", []):
-                    coords = result.get("coordinates", {})
+                for location in data.get("results", []):
+                    location_id = location.get("id")
+                    coords = location.get("coordinates", {})
                     lat = coords.get("latitude", city_info["lat"])
                     lon = coords.get("longitude", city_info["lon"])
 
-                    for measurement in result.get("measurements", []):
-                        param = measurement.get("parameter", "").lower()
-                        if param in AQ_PARAMETERS:
-                            records.append({
-                                "source": "openaq",
-                                "city": city_info["city"],
-                                "country": city_info["country"],
-                                "parameter": param.upper(),
-                                "value": measurement.get("value", 0),
-                                "unit": measurement.get("unit", ""),
-                                "geometry": {
-                                    "type": "Point",
-                                    "coordinates": [lon, lat],
-                                },
-                                "timestamp": measurement.get(
-                                    "lastUpdated", _now_iso()
-                                ),
-                            })
+                    # Fetch latest measurements for this location
+                    try:
+                        mresp = client.get(
+                            f"/locations/{location_id}/latest",
+                            headers={"Accept": "application/json"},
+                        )
+                        mresp.raise_for_status()
+                        mdata = mresp.json()
+
+                        for measurement in mdata.get("results", []):
+                            param = measurement.get("parameter", {})
+                            param_name = param.get("name", "").lower() if isinstance(param, dict) else str(param).lower()
+                            if param_name in AQ_PARAMETERS:
+                                records.append({
+                                    "source": "openaq",
+                                    "city": city_info["city"],
+                                    "country": city_info["country"],
+                                    "parameter": param_name.upper(),
+                                    "value": measurement.get("value", 0),
+                                    "unit": measurement.get("unit", ""),
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [lon, lat],
+                                    },
+                                    "timestamp": measurement.get(
+                                        "datetime", {}).get("utc", _now_iso()
+                                    ) if isinstance(measurement.get("datetime"), dict) else _now_iso(),
+                                })
+                    except httpx.HTTPError as exc:
+                        log.debug(
+                            f"OpenAQ measurements fetch failed for location {location_id}: {exc}"
+                        )
+
             except httpx.HTTPError as exc:
                 log.warning(
                     f"OpenAQ fetch failed for {city_info['city']}: {exc}"

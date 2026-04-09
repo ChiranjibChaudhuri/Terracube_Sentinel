@@ -3,7 +3,7 @@ CelesTrak satellite orbital tracking adapter.
 Parses TLE data and propagates orbits for satellite pass tracking.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 import math

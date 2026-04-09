@@ -3,7 +3,7 @@ Enhanced earthquake monitoring adapter (USGS).
 Adds ShakeMap intensity, tsunami alerts, aftershock sequence tracking.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 

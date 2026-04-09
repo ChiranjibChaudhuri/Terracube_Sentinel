@@ -145,7 +145,7 @@ export default function Ontology() {
   return (
     <div className="flex gap-4 h-[calc(100vh-8rem)]">
       {/* SVG Canvas */}
-      <div className="flex-1 bg-[#1e293b] rounded-lg border border-slate-700/50 overflow-hidden">
+      <div className="flex-1 bg-[#1e293b] rounded-lg border border-slate-700/50 overflow-hidden relative">
         <svg viewBox="0 0 1000 680" className="w-full h-full">
           {/* Edges */}
           {LINK_TYPES.map((link) => {

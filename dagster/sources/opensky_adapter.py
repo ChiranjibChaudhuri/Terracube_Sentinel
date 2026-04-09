@@ -4,7 +4,7 @@ Fetches aircraft state vectors: lat, lng, altitude, heading, velocity, callsign,
 """
 
 from dataclasses import dataclass
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 

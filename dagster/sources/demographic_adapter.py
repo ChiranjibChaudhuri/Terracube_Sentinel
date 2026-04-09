@@ -3,7 +3,7 @@ Demographic/socio-economic data adapter.
 World Bank API, ACLED armed conflict, UNHCR displacement data.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 
@@ -38,7 +38,7 @@ COUNTRY_COORDS: dict[str, list[float]] = {
 
 class DemographicAdapter(BaseAdapter):
     source_name = "demographic"
-    entity_type = "Region"
+    entity_type = "FinancialIndicator"
 
     def get_ttl(self) -> int:
         return 86400  # Daily refresh

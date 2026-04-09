@@ -78,19 +78,19 @@ def test_nasa_eonet_real():
 
 
 def test_openaq_real():
-    """Fetch real air quality data from OpenAQ API."""
-    url = "https://api.openaq.org/v2/latest?city=Toronto&limit=1"
+    """Fetch real air quality data from OpenAQ API v3."""
+    url = "https://api.openaq.org/v3/locations?limit=1&coordinates=43.65,-79.38&radius=25000"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "TerraCube-E2E/1.0"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode())
             results = data.get("results", [])
             has_data = len(results) > 0
-            measurements = results[0].get("measurements", []) if results else []
-            log_test("OpenAQ API (Toronto)", has_data,
-                     f"{len(measurements)} measurements")
+            name = results[0].get("name", "unknown") if results else "none"
+            log_test("OpenAQ API v3 (Toronto)", has_data,
+                     f"nearest station: {name}")
     except Exception as e:
-        log_test("OpenAQ API (Toronto)", False, str(e)[:200])
+        log_test("OpenAQ API v3 (Toronto)", False, str(e)[:200])
 
 
 def test_gdelt_real():
@@ -174,7 +174,7 @@ def test_osm_real():
 
 def test_dagster_pipelines_compile():
     """Verify all 7 Dagster pipeline modules import cleanly."""
-    sentinel_dir = "/Users/chiranjibchaudhuri/Documents/TerraCube_Sentinel"
+    sentinel_dir = os.path.dirname(os.path.abspath(__file__))
     pipelines = [
         "real_time_hazards",
         "satellite_ingestion",
@@ -201,7 +201,7 @@ def test_dagster_pipelines_compile():
 
 def test_dagster_ai_ingest_compile():
     """Verify ai_ingest module compiles."""
-    sentinel_dir = "/Users/chiranjibchaudhuri/Documents/TerraCube_Sentinel"
+    sentinel_dir = os.path.dirname(os.path.abspath(__file__))
     try:
         result = subprocess.run(
             [sys.executable, "-c",
@@ -220,7 +220,7 @@ def test_dagster_ai_ingest_compile():
 
 def test_agents_compile():
     """Verify all agent modules compile."""
-    sentinel_dir = "/Users/chiranjibchaudhuri/Documents/TerraCube_Sentinel"
+    sentinel_dir = os.path.dirname(os.path.abspath(__file__))
     modules = [
         "config",
         "api",
@@ -254,20 +254,13 @@ def test_agents_compile():
 
 def test_frontend_build():
     """Verify frontend builds without errors."""
-    frontend_dir = "/Users/chiranjibchaudhuri/Documents/TerraCube_Sentinel/frontend"
+    sentinel_dir = os.path.dirname(os.path.abspath(__file__))
+    frontend_dir = os.path.join(sentinel_dir, "frontend")
     result = subprocess.run(
-        [sys.executable, "-m", "npm", "run", "build"],
+        ["npm", "run", "build"],
         capture_output=True, text=True, timeout=120,
         cwd=frontend_dir,
-        env={**os.environ, "PATH": os.environ.get("PATH", "")}
     )
-    # Try with npx directly
-    if result.returncode != 0:
-        result = subprocess.run(
-            ["npm", "run", "build"],
-            capture_output=True, text=True, timeout=120,
-            cwd=frontend_dir
-        )
     ok = result.returncode == 0
     log_test("Frontend build (npm run build)", ok,
              result.stdout[-200:] if ok else result.stderr[-300:])
@@ -277,7 +270,7 @@ def test_frontend_build():
 
 def test_docker_compose_config():
     """Verify docker-compose.yml is valid."""
-    sentinel_dir = "/Users/chiranjibchaudhuri/Documents/TerraCube_Sentinel"
+    sentinel_dir = os.path.dirname(os.path.abspath(__file__))
     result = subprocess.run(
         ["docker", "compose", "config", "--quiet"],
         capture_output=True, text=True, timeout=30,

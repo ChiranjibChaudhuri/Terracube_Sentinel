@@ -180,8 +180,8 @@ export default function Dashboard() {
                       <span className={`px-2 py-0.5 rounded text-xs ${SEVERITY_COLOR[e.alertLevel]}`}>{e.severity}</span>
                     </td>
                     <td className="px-4 py-2 text-slate-400 text-xs font-mono">
-                      {(e.geometry as { coordinates: number[] }).coordinates[1].toFixed(2)},{' '}
-                      {(e.geometry as { coordinates: number[] }).coordinates[0].toFixed(2)}
+                      {(e.geometry as { type: string; coordinates: [number, number] }).coordinates[1].toFixed(2)},{' '}
+                      {(e.geometry as { type: string; coordinates: [number, number] }).coordinates[0].toFixed(2)}
                     </td>
                     <td className="px-4 py-2 text-slate-400 text-xs">
                       {formatDistanceToNow(new Date(e.startTime), { addSuffix: true })}

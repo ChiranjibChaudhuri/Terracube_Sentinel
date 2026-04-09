@@ -3,7 +3,7 @@ Infrastructure monitoring adapter.
 Fetches ports, airports, and enhanced power grid data.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import httpx
 import logging
 import csv

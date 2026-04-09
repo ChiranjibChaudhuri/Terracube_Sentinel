@@ -306,7 +306,7 @@ async def ai_status():
     """AI ingestion pipeline status: LLM availability, last ingest stats, quality metrics."""
     try:
         import sys
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dagster"))
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dagster"))
         from ai_ingest.llm_client import LLMClient
         from ai_ingest.config import AIIngestConfig
 

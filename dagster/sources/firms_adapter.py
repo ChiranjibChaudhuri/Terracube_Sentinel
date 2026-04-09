@@ -3,7 +3,7 @@ Enhanced NASA FIRMS fire detection adapter.
 Adds confidence scoring, fire radiative power tracking, historical comparison.
 """
 
-from dagster.sources.base_adapter import BaseAdapter, GeoJSONFeature
+from .base_adapter import BaseAdapter, GeoJSONFeature
 import os
 import httpx
 import logging
