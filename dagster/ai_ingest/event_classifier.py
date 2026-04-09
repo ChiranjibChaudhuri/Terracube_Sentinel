@@ -11,9 +11,10 @@ import logging
 from typing import Any
 
 from .llm_client import LLMClient
-from .config import LLMSettings
 
 logger = logging.getLogger(__name__)
+
+VALID_SEVERITIES = frozenset({"LOW", "MODERATE", "HIGH", "CRITICAL"})
 
 # ── ODL schema definitions (provided to LLM as context) ──────────────
 
@@ -165,6 +166,88 @@ def _rule_based_classify(raw_event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _base_properties(raw_event: dict[str, Any]) -> dict[str, Any]:
+    """Return the best available property payload from a raw event."""
+    nested_properties = raw_event.get("properties")
+    if isinstance(nested_properties, dict) and nested_properties:
+        return dict(nested_properties)
+    return dict(raw_event)
+
+
+def _coerce_confidence(value: Any) -> float | None:
+    """Coerce an arbitrary confidence value to a 0-1 float."""
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, min(1.0, confidence))
+
+
+def _normalise_classification(
+    raw_event: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Validate and normalise an LLM classification response."""
+    object_type = str(result.get("object_type", "")).strip()
+    if object_type not in ODL_OBJECT_TYPES:
+        logger.warning("LLM returned unknown object_type %r", object_type)
+        return None
+
+    severity = str(result.get("severity", "")).upper().strip()
+    if severity not in VALID_SEVERITIES:
+        logger.warning("LLM returned invalid severity %r", result.get("severity"))
+        return None
+
+    confidence = _coerce_confidence(result.get("confidence"))
+    if confidence is None:
+        logger.warning("LLM returned invalid confidence %r", result.get("confidence"))
+        return None
+
+    llm_properties = result.get("properties", {})
+    if llm_properties is None:
+        llm_properties = {}
+    if not isinstance(llm_properties, dict):
+        logger.warning("LLM returned non-dict properties for classification")
+        return None
+
+    properties = {
+        **_base_properties(raw_event),
+        **llm_properties,
+    }
+    title = str(
+        result.get("title")
+        or properties.get("title")
+        or raw_event.get("title")
+        or raw_event.get("name")
+        or "Unknown Event"
+    )
+    summary = str(
+        result.get("summary")
+        or properties.get("description")
+        or raw_event.get("summary")
+        or ""
+    )
+    actors = result.get("actors", [])
+    if not isinstance(actors, list):
+        actors = [actors]
+
+    properties.setdefault("title", title)
+    properties.setdefault("severity", severity)
+    properties.setdefault("description", summary)
+    if raw_event.get("source") and "source" not in properties:
+        properties["source"] = raw_event["source"]
+
+    return {
+        "object_type": object_type,
+        "severity": severity,
+        "confidence": confidence,
+        "title": title,
+        "summary": summary,
+        "actors": [str(actor) for actor in actors if actor is not None],
+        "properties": properties,
+    }
+
+
 # ── Public API ────────────────────────────────────────────────────────
 
 
@@ -172,7 +255,7 @@ def classify_event(
     raw_event: dict[str, Any],
     llm: LLMClient | None = None,
 ) -> dict[str, Any]:
-    """Classify a single raw event using LLM (with rule-based fallback)."""
+    """Classify a single raw event using the LLM with rule-based fallback."""
     if llm is None:
         llm = LLMClient()
 
@@ -183,23 +266,20 @@ def classify_event(
 
     result = llm.extract_json(prompt, system=CLASSIFICATION_SYSTEM_PROMPT)
     if result is None or not isinstance(result, dict):
+        logger.info("Falling back to rule-based classification for event")
         return _rule_based_classify(raw_event)
 
-    # Validate required fields
-    for key in ("object_type", "severity", "confidence"):
-        if key not in result:
-            logger.warning("LLM classification missing '%s', falling back", key)
-            return _rule_based_classify(raw_event)
-
-    # Validate object_type is a known ODL type
-    if result["object_type"] not in ODL_OBJECT_TYPES:
-        logger.warning(
-            "LLM returned unknown object_type '%s', falling back",
-            result["object_type"],
-        )
+    normalised = _normalise_classification(raw_event, result)
+    if normalised is None:
+        logger.info("Using rule-based classification because LLM output was invalid")
         return _rule_based_classify(raw_event)
 
-    return result
+    logger.debug(
+        "Classified event as %s with %s severity",
+        normalised["object_type"],
+        normalised["severity"],
+    )
+    return normalised
 
 
 def classify_events(
@@ -207,7 +287,7 @@ def classify_events(
     llm: LLMClient | None = None,
     max_batch: int = 10,
 ) -> list[dict[str, Any]]:
-    """Classify multiple events (processes up to *max_batch* at a time)."""
+    """Classify multiple events, processing up to ``max_batch`` items at a time."""
     if llm is None:
         llm = LLMClient()
 
