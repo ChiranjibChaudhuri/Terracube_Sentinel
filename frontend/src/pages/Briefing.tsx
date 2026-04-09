@@ -1,153 +1,243 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Clock, Download, FileText, Shield } from 'lucide-react'
-import { mockGSERegions } from '../lib/mock-data'
+import { Clock, Download, FileText, FileCode2, Shield } from 'lucide-react'
+import { PageErrorBanner, SkeletonBlock, SkeletonText } from '../components/AsyncState'
+import {
+  getDailyBriefing,
+  getDailyBriefingMarkdown,
+  type BriefingResponse,
+} from '../lib/api'
 
-function generateSyntheticBriefing(type: string) {
-  const now = new Date()
-  const topRegions = mockGSERegions.slice(0, 5)
-  const maxGSE = Math.max(...mockGSERegions.map((r) => r.gseScore))
-  const globalLevel = maxGSE >= 90 ? 'CRITICAL' : maxGSE >= 60 ? 'HEIGHTENED' : maxGSE >= 30 ? 'ELEVATED' : 'STABLE'
+function StructuredSection({
+  section,
+  index,
+}: {
+  section: BriefingResponse['sections'][number]
+  index: number
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06, duration: 0.25 }}
+    >
+      <h3 className="mb-2.5 text-sm font-bold text-cyan-400">{section.title}</h3>
+      <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        {section.content.split('**').map((part, partIndex) =>
+          partIndex % 2 === 1
+            ? <strong key={partIndex} className="font-semibold text-amber-300">{part}</strong>
+            : part,
+        )}
+      </div>
+    </motion.div>
+  )
+}
 
-  if (type === 'daily') {
-    return {
-      title: `DAILY INTELLIGENCE BRIEFING — ${now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}`,
-      sections: [
-        {
-          title: '1. EXECUTIVE SUMMARY',
-          content: `- Global threat level: **${globalLevel}** (peak GSE: ${maxGSE.toFixed(1)})\n- ${topRegions.filter((r) => r.threatLevel === 'HEIGHTENED' || r.threatLevel === 'CRITICAL').length} region(s) at HEIGHTENED or above\n- Total events processed: ${topRegions.reduce((a, r) => a + r.eventCount, 0)}\n- Escalation alerts: ${topRegions.filter((r) => r.trend === 'up').length}`,
-        },
-        {
-          title: '2. GLOBAL STATE INDICATOR',
-          content: `**${globalLevel}** ${topRegions.some((r) => r.trend === 'up') ? '↑' : '→'} Peak GSE: ${maxGSE.toFixed(1)}/200`,
-        },
-        {
-          title: '3. REGIONAL ANALYSIS (Top 5)',
-          content: topRegions.map((r) => `- **${r.regionName}**: ${r.threatLevel} (GSE: ${r.gseScore.toFixed(1)}) — ${r.eventCount} events — ${r.trend === 'up' ? '↑ ESCALATING' : '→ Stable'}`).join('\n'),
-        },
-        {
-          title: '4. ACTIVE THREATS',
-          content: topRegions.filter((r) => r.threatLevel !== 'STABLE').map((r) => `- **${r.regionName}**: ${r.threatLevel} (GSE: ${r.gseScore.toFixed(1)}) — primary driver: ${r.topCategory}`).join('\n'),
-        },
-        {
-          title: '5. FORECAST (24-48h)',
-          content: topRegions.some((r) => r.trend === 'up' && r.gseScore > 60)
-            ? `- **Escalation risk HIGH** in: ${topRegions.filter((r) => r.trend === 'up' && r.gseScore > 60).map((r) => r.regionName).join(', ')}\n- Continued monitoring recommended for all HEIGHTENED+ regions`
-            : '- No immediate escalation expected\n- Continue standard monitoring cadence',
-        },
-        {
-          title: '6. RECOMMENDED ACTIONS',
-          content: '- Monitor escalating regions at 15-minute intervals\n- Review cross-domain activity in Middle East and South Asia\n- Brief senior leadership on HEIGHTENED regions\n- Continue routine monitoring for STABLE regions',
-        },
-      ],
-    }
-  }
-
-  return {
-    title: `SITUATION REPORT — ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} UTC`,
-    sections: [
-      { title: 'THREAT ASSESSMENT', content: `Global level: ${globalLevel} | Peak GSE: ${maxGSE.toFixed(1)}` },
-      { title: 'KEY EVENTS', content: 'See Active Threats table on dashboard for current events.' },
-      { title: 'RECOMMENDED ACTIONS', content: '- Continue monitoring\n- Review all HEIGHTENED+ regions' },
-    ],
-  }
+function BriefingSkeleton() {
+  return (
+    <div className="glass-card overflow-hidden">
+      <div
+        className="px-8 py-5"
+        style={{
+          background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        <SkeletonBlock className="h-6 w-2/3" />
+        <div className="mt-3 flex gap-3">
+          <SkeletonBlock className="h-4 w-28" />
+          <SkeletonBlock className="h-4 w-36" />
+          <SkeletonBlock className="h-4 w-40" />
+        </div>
+      </div>
+      <div className="space-y-6 px-8 py-6">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="space-y-3">
+            <SkeletonBlock className="h-4 w-52" />
+            <SkeletonText lines={4} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function Briefing() {
-  const [briefingType, setBriefingType] = useState<'daily' | 'sitrep'>('daily')
-  const briefing = generateSyntheticBriefing(briefingType)
+  const [briefingView, setBriefingView] = useState<'structured' | 'markdown'>('structured')
+
+  const briefingQuery = useQuery({
+    queryKey: ['briefing', 'daily'],
+    queryFn: ({ signal }) => getDailyBriefing(signal),
+    refetchInterval: 60_000,
+  })
+
+  const markdownQuery = useQuery({
+    queryKey: ['briefing', 'daily', 'markdown'],
+    queryFn: ({ signal }) => getDailyBriefingMarkdown(signal),
+    refetchInterval: 60_000,
+  })
+
+  const isLoading = briefingView === 'structured'
+    ? briefingQuery.isLoading
+    : markdownQuery.isLoading
+
+  const hasError = briefingQuery.isError || markdownQuery.isError
+
+  const handleRetry = () => {
+    void briefingQuery.refetch()
+    void markdownQuery.refetch()
+  }
+
+  const handleExport = () => {
+    const markdown = markdownQuery.data?.markdown
+    if (!markdown) return
+
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'sentinel-daily-briefing.md'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <motion.div
-      className="space-y-6 max-w-4xl"
+      className="max-w-4xl space-y-6"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-white flex items-center gap-2.5">
-          <FileText className="w-5 h-5 text-cyan-400" /> Intelligence Briefings
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="flex items-center gap-2.5 text-lg font-bold text-white">
+          <FileText className="h-5 w-5 text-cyan-400" />
+          Intelligence Briefings
         </h1>
+
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}>
+          <div
+            className="flex overflow-hidden rounded-lg"
+            style={{ border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
+          >
             <button
-              onClick={() => setBriefingType('daily')}
+              type="button"
+              onClick={() => setBriefingView('structured')}
               className="px-4 py-2 text-xs font-semibold transition-all"
               style={{
-                background: briefingType === 'daily' ? 'rgba(56,189,248,0.1)' : 'transparent',
-                color: briefingType === 'daily' ? '#38bdf8' : 'var(--text-muted)',
+                background: briefingView === 'structured' ? 'rgba(56,189,248,0.1)' : 'transparent',
+                color: briefingView === 'structured' ? '#38bdf8' : 'var(--text-muted)',
               }}
             >
-              Daily Briefing
+              Structured
             </button>
             <button
-              onClick={() => setBriefingType('sitrep')}
+              type="button"
+              onClick={() => setBriefingView('markdown')}
               className="px-4 py-2 text-xs font-semibold transition-all"
               style={{
-                background: briefingType === 'sitrep' ? 'rgba(56,189,248,0.1)' : 'transparent',
-                color: briefingType === 'sitrep' ? '#38bdf8' : 'var(--text-muted)',
+                background: briefingView === 'markdown' ? 'rgba(56,189,248,0.1)' : 'transparent',
+                color: briefingView === 'markdown' ? '#38bdf8' : 'var(--text-muted)',
               }}
             >
-              SITREP
+              Markdown
             </button>
           </div>
+
           <button
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all focus-ring"
+            type="button"
+            disabled={!markdownQuery.data?.markdown}
+            onClick={handleExport}
+            className="focus-ring flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
             style={{
               background: 'var(--bg-card)',
               color: 'var(--text-secondary)',
               border: '1px solid var(--border-default)',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#fff' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
-            <Download className="w-3.5 h-3.5" /> Export
+            <Download className="h-3.5 w-3.5" />
+            Export Markdown
           </button>
         </div>
       </div>
 
-      {/* Briefing document */}
-      <div className="glass-card overflow-hidden">
-        {/* Document header */}
-        <div className="px-8 py-5" style={{ background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))', borderBottom: '1px solid var(--border-subtle)' }}>
-          <h2 className="text-base font-bold gradient-text-cyan">{briefing.title}</h2>
-          <div className="flex items-center gap-5 mt-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <span className="flex items-center gap-1.5">
-              <Shield className="w-3 h-3" />
-              <span className="badge-live badge-live-green">UNCLASSIFIED</span>
-            </span>
-            <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {new Date().toISOString().slice(0, 19)}Z</span>
-            <span>TerraCube Sentinel Automated Briefing</span>
+      {hasError ? (
+        <PageErrorBanner
+          title="Briefing refresh failed"
+          message="The page is retrying automatically. Use Retry to request a fresh copy from the backend."
+          onRetry={handleRetry}
+        />
+      ) : null}
+
+      {isLoading ? (
+        <BriefingSkeleton />
+      ) : briefingView === 'structured' && briefingQuery.data ? (
+        <div className="glass-card overflow-hidden">
+          <div
+            className="px-8 py-5"
+            style={{
+              background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <h2 className="gradient-text-cyan text-base font-bold">{briefingQuery.data.title}</h2>
+            <div className="mt-2.5 flex flex-wrap items-center gap-5 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span className="flex items-center gap-1.5">
+                <Shield className="h-3 w-3" />
+                <span className="badge-live badge-live-green">{briefingQuery.data.classification}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                {new Date(briefingQuery.data.generatedAt).toLocaleString()}
+              </span>
+              <span>TerraCube Sentinel Automated Briefing</span>
+            </div>
+          </div>
+
+          <div className="space-y-6 px-8 py-6">
+            {briefingQuery.data.sections.map((section, index) => (
+              <StructuredSection key={`${section.title}-${index}`} section={section} index={index} />
+            ))}
+          </div>
+
+          <div className="px-8 py-3 text-center" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <p className="text-[10px] italic" style={{ color: 'var(--text-muted)' }}>
+              Generated by TerraCube Sentinel Intelligence Platform
+            </p>
           </div>
         </div>
+      ) : markdownQuery.data ? (
+        <div className="glass-card overflow-hidden">
+          <div
+            className="flex items-center justify-between px-8 py-5"
+            style={{
+              background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(14,165,233,0.02))',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div>
+              <h2 className="gradient-text-cyan text-base font-bold">Daily Briefing Markdown</h2>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                `/briefing/daily/markdown`
+              </p>
+            </div>
+            <FileCode2 className="h-4 w-4 text-cyan-400" />
+          </div>
 
-        {/* Document body */}
-        <div className="px-8 py-6 space-y-6">
-          {briefing.sections.map((section, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08, duration: 0.3 }}
-            >
-              <h3 className="text-sm font-bold text-cyan-400 mb-2.5">{section.title}</h3>
-              <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                {section.content.split('**').map((part, j) =>
-                  j % 2 === 1 ? <strong key={j} className="text-amber-300 font-semibold">{part}</strong> : part
-                )}
-              </div>
-            </motion.div>
-          ))}
+          <pre
+            className="overflow-x-auto px-8 py-6 text-sm leading-7 whitespace-pre-wrap"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {markdownQuery.data.markdown}
+          </pre>
         </div>
-
-        {/* Document footer */}
-        <div className="px-8 py-3 text-center" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <p className="text-[10px] italic" style={{ color: 'var(--text-muted)' }}>
-            Generated by TerraCube Sentinel Intelligence Platform &mdash; GLM-5 Turbo AI Engine
-          </p>
-        </div>
-      </div>
+      ) : (
+        <PageErrorBanner
+          title="No briefing available"
+          message="The backend did not return a structured briefing or markdown output."
+          onRetry={handleRetry}
+        />
+      )}
     </motion.div>
   )
 }

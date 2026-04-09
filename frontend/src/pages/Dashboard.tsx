@@ -1,5 +1,6 @@
 import { formatDistanceStrict } from 'date-fns'
 import { motion } from 'framer-motion'
+import type { ReactNode } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -8,24 +9,12 @@ import {
   Database,
   Globe,
   Minus,
-  Radio,
   Satellite,
   Shield,
   TrendingDown,
   TrendingUp,
   Wind,
 } from 'lucide-react'
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import {
   mockAlerts,
   mockAircraft,
@@ -45,6 +34,14 @@ import type { GeoJSONPoint, PipelineExecution } from '../lib/types'
 
 const REFERENCE_NOW = new Date('2026-04-08T12:00:00Z')
 const REFERENCE_NOW_MS = REFERENCE_NOW.getTime()
+
+const GLASS_PANEL =
+  'relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl shadow-[0_24px_80px_rgba(0,0,0,0.36)] transition-all duration-200 hover:scale-[1.01] hover:border-white/[0.12]'
+
+const SUB_PANEL =
+  'rounded-xl border border-white/[0.06] bg-black/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+
+const KICKER_CLASS = 'text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500'
 
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string; glow: string }> = {
   GREEN: {
@@ -87,6 +84,25 @@ const PIPELINE_STATUS_STYLES: Record<string, { bg: string; text: string; border:
   PENDING: { bg: 'rgba(148, 163, 184, 0.12)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.22)' },
   CANCELLED: { bg: 'rgba(100, 116, 139, 0.12)', text: '#64748b', border: 'rgba(100, 116, 139, 0.22)' },
 }
+
+const LIVE_BADGE_STYLES = {
+  green: {
+    badge: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200',
+    dot: 'bg-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.75)]',
+  },
+  blue: {
+    badge: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-200',
+    dot: 'bg-cyan-400 shadow-[0_0_14px_rgba(34,211,238,0.75)]',
+  },
+  amber: {
+    badge: 'border-amber-400/20 bg-amber-400/10 text-amber-200',
+    dot: 'bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.75)]',
+  },
+  red: {
+    badge: 'border-rose-400/20 bg-rose-400/10 text-rose-200',
+    dot: 'bg-rose-400 shadow-[0_0_14px_rgba(251,113,133,0.75)]',
+  },
+} as const
 
 const TREND_ICON = {
   up: TrendingUp,
@@ -149,16 +165,8 @@ const QUALITY_SPARKLINES = {
 }
 
 const STAGGER = {
-  container: { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } },
-  item: { hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } },
-}
-
-const chartTooltipStyle = {
-  background: 'rgba(8, 16, 28, 0.96)',
-  border: '1px solid rgba(110, 231, 183, 0.12)',
-  borderRadius: 14,
-  boxShadow: '0 22px 54px rgba(0, 0, 0, 0.42)',
-  fontSize: 12,
+  container: { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } },
+  item: { hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0, transition: { duration: 0.32 } } },
 }
 
 type GaugeMetricProps = {
@@ -181,6 +189,17 @@ type FeedItem = {
   live: boolean
 }
 
+type ChartSeries = {
+  key: string
+  label: string
+  color: string
+  fillOpacity?: number
+}
+
+function cn(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ')
+}
+
 function average(values: number[]) {
   if (values.length === 0) return 0
   return values.reduce((sum, value) => sum + value, 0) / values.length
@@ -188,6 +207,10 @@ function average(values: number[]) {
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value))
+}
+
+function slugify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
 
 function formatRelativeTime(timestamp: string) {
@@ -223,79 +246,94 @@ function impactedAssetEstimate(score: number) {
   return Math.max(1, Math.round(score / 24))
 }
 
-function GaugeRing({
-  value,
-  max,
-  color,
-  size = 84,
-}: {
-  value: number
-  max: number
-  color: string
-  size?: number
-}) {
-  const strokeWidth = 7
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const progress = Math.min(value / max, 1)
-  const offset = circumference * (1 - progress)
-
-  return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="rgba(84, 108, 129, 0.18)"
-        strokeWidth={strokeWidth}
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        className="gauge-ring"
-      />
-    </svg>
-  )
+function polarToCartesian(cx: number, cy: number, radius: number, angle: number) {
+  const radians = ((angle - 90) * Math.PI) / 180
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  }
 }
 
-function Sparkline({
-  values,
-  color,
-  height = 34,
-}: {
-  values: number[]
-  color: string
-  height?: number
-}) {
-  const width = 136
-  const padding = 4
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
+function describeArc(cx: number, cy: number, radius: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(cx, cy, radius, endAngle)
+  const end = polarToCartesian(cx, cy, radius, startAngle)
+  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1'
+  return ['M', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y].join(' ')
+}
 
-  const coordinates = values.map((value, index) => {
-    const x = padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2)
-    const normalized = (value - min) / range
-    const y = height - padding - normalized * (height - padding * 2)
+function linePath(points: Array<{ x: number; y: number }>) {
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+}
+
+function areaPath(points: Array<{ x: number; y: number }>, baseline: number) {
+  if (points.length === 0) return ''
+  return `${linePath(points)} L ${points[points.length - 1].x} ${baseline} L ${points[0].x} ${baseline} Z`
+}
+
+function getPoints(
+  values: number[],
+  width: number,
+  height: number,
+  padding: { top: number; right: number; bottom: number; left: number },
+  domain?: [number, number],
+) {
+  const [min, max] = domain ?? [Math.min(...values), Math.max(...values)]
+  const range = max - min || 1
+  const plotWidth = width - padding.left - padding.right
+  const plotHeight = height - padding.top - padding.bottom
+
+  return values.map((value, index) => {
+    const x = padding.left + (index / Math.max(values.length - 1, 1)) * plotWidth
+    const normalized = (clamp(value, min, max) - min) / range
+    const y = padding.top + plotHeight - normalized * plotHeight
     return { x, y }
   })
+}
 
-  const linePath = coordinates.map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`).join(' ')
-  const areaPath = `${linePath} L ${coordinates.at(-1)?.x ?? width - padding} ${height - padding} L ${coordinates[0]?.x ?? padding} ${height - padding} Z`
+function getStatusTone(status: string) {
+  const pipelineTone = PIPELINE_STATUS_STYLES[status]
+  if (pipelineTone) return pipelineTone
+
+  switch (status) {
+    case 'CRITICAL':
+    case 'HIGH':
+      return PIPELINE_STATUS_STYLES.FAILED
+    case 'MODERATE':
+      return { bg: 'rgba(251, 146, 60, 0.12)', text: '#fb923c', border: 'rgba(251, 146, 60, 0.24)' }
+    case 'LOW':
+    case 'GREEN':
+      return PIPELINE_STATUS_STYLES.SUCCEEDED
+    case 'LIVE':
+      return PIPELINE_STATUS_STYLES.RUNNING
+    case 'MONITOR':
+      return { bg: 'rgba(148, 163, 184, 0.12)', text: '#cbd5e1', border: 'rgba(148, 163, 184, 0.2)' }
+    default:
+      return { bg: 'rgba(148, 163, 184, 0.12)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.22)' }
+  }
+}
+
+function LiveBadge({
+  label = 'LIVE',
+  tone = 'green',
+}: {
+  label?: string
+  tone?: keyof typeof LIVE_BADGE_STYLES
+}) {
+  const style = LIVE_BADGE_STYLES[tone]
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="sparkline-shell">
-      <path d={areaPath} fill={color} fillOpacity="0.12" />
-      <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <span
+      className={cn(
+        'inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.32em]',
+        style.badge,
+      )}
+    >
+      <span className="relative flex h-2 w-2 items-center justify-center">
+        <span className={cn('absolute inset-0 rounded-full opacity-70 animate-pulse', style.dot)} />
+        <span className={cn('relative h-2 w-2 rounded-full', style.dot)} />
+      </span>
+      {label}
+    </span>
   )
 }
 
@@ -306,16 +344,246 @@ function SectionHeader({
 }: {
   title: string
   subtitle: string
-  aside?: React.ReactNode
+  aside?: ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p className="dashboard-kicker">{subtitle}</p>
-        <h2 className="dashboard-section-title mt-1">{title}</h2>
+        <p className={KICKER_CLASS}>{subtitle}</p>
+        <h2 className="mt-2 text-xl font-semibold text-white">{title}</h2>
       </div>
-      {aside}
+      {aside ? <div className="shrink-0">{aside}</div> : null}
     </div>
+  )
+}
+
+function RadialGauge({
+  id,
+  value,
+  display,
+  size = 132,
+  compact = false,
+}: {
+  id: string
+  value: number
+  display: string
+  size?: number
+  compact?: boolean
+}) {
+  const progress = clamp(value) / 100
+  const center = size / 2
+  const radius = center - (compact ? 14 : 16)
+  const strokeWidth = compact ? 8 : 10
+  const gaugeId = slugify(id)
+  const fullArc = describeArc(center, center, radius, 135, 405)
+  const zones = [
+    { start: 135, end: 265, color: '#22c55e' },
+    { start: 265, end: 340, color: '#eab308' },
+    { start: 340, end: 405, color: '#ef4444' },
+  ]
+
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className={cn(compact ? 'h-28 w-28' : 'h-32 w-32', 'overflow-visible')}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={`gauge-progress-${gaugeId}`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#22c55e" />
+          <stop offset="62%" stopColor="#facc15" />
+          <stop offset="100%" stopColor="#ef4444" />
+        </linearGradient>
+      </defs>
+
+      <path d={fullArc} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeWidth} strokeLinecap="round" />
+      {zones.map((zone) => (
+        <path
+          key={`${zone.start}-${zone.end}`}
+          d={describeArc(center, center, radius, zone.start, zone.end)}
+          fill="none"
+          stroke={zone.color}
+          strokeOpacity={0.36}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+        />
+      ))}
+      <motion.path
+        d={fullArc}
+        fill="none"
+        stroke={`url(#gauge-progress-${gaugeId})`}
+        strokeWidth={strokeWidth + 1}
+        strokeLinecap="round"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: progress }}
+        transition={{ duration: 1, ease: 'easeOut' }}
+        style={{ filter: 'drop-shadow(0 0 12px rgba(103, 200, 255, 0.3))' }}
+      />
+      <circle
+        cx={center}
+        cy={center}
+        r={radius - strokeWidth * 1.65}
+        fill="rgba(8,14,28,0.9)"
+        stroke="rgba(255,255,255,0.06)"
+      />
+      <text
+        x={center}
+        y={center + 2}
+        textAnchor="middle"
+        className={cn(compact ? 'fill-white text-[20px]' : 'fill-white text-[24px]', 'font-bold')}
+      >
+        {display}
+      </text>
+    </svg>
+  )
+}
+
+function Sparkline({
+  id,
+  values,
+  color,
+  height = 58,
+}: {
+  id: string
+  values: number[]
+  color: string
+  height?: number
+}) {
+  const width = 220
+  const padding = { top: 8, right: 4, bottom: 8, left: 4 }
+  const points = getPoints(values, width, height, padding)
+  const path = linePath(points)
+  const fill = areaPath(points, height - padding.bottom)
+  const gradientId = `spark-fill-${slugify(id)}`
+  const delta = values[values.length - 1] - values[0]
+
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Trend</p>
+        <span className={cn('text-[11px] font-semibold uppercase tracking-[0.22em]', delta >= 0 ? 'text-emerald-300' : 'text-rose-300')}>
+          {delta >= 0 ? '+' : ''}
+          {delta.toFixed(0)} pts
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="mt-2 h-14 w-full">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.38" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={fill} fill={`url(#${gradientId})`} />
+        <motion.path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </svg>
+    </div>
+  )
+}
+
+function OperationalChart({
+  id,
+  data,
+  series,
+  domain,
+}: {
+  id: string
+  data: Array<Record<string, number | string>>
+  series: ChartSeries[]
+  domain?: [number, number]
+}) {
+  const width = 640
+  const height = 240
+  const padding = { top: 16, right: 12, bottom: 34, left: 12 }
+  const labels = data.map((entry) => String(entry.label))
+  const seriesValues = series.map((item) => data.map((entry) => Number(entry[item.key])))
+  const allValues = seriesValues.flat()
+  const chartDomain: [number, number] = domain ?? [Math.min(...allValues), Math.max(...allValues)]
+  const plotHeight = height - padding.top - padding.bottom
+  const ticks = Array.from({ length: 4 }, (_, index) =>
+    chartDomain[0] + ((chartDomain[1] - chartDomain[0]) * index) / 3,
+  )
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full">
+      <defs>
+        {series.map((item) => (
+          <linearGradient key={item.key} id={`${id}-${item.key}-fill`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={item.color} stopOpacity={item.fillOpacity ?? 0.2} />
+            <stop offset="100%" stopColor={item.color} stopOpacity="0" />
+          </linearGradient>
+        ))}
+      </defs>
+
+      <rect x="0" y="0" width={width} height={height} rx="18" fill="rgba(5,10,19,0.22)" />
+
+      {ticks.map((tick, index) => {
+        const y = padding.top + plotHeight - (index / 3) * plotHeight
+        return (
+          <g key={tick}>
+            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgba(148,163,184,0.12)" strokeDasharray="3 8" />
+            <text
+              x={width - padding.right}
+              y={y - 6}
+              textAnchor="end"
+              className="fill-slate-500 text-[10px] uppercase tracking-[0.2em]"
+            >
+              {Math.round(tick)}
+            </text>
+          </g>
+        )
+      })}
+
+      {series.map((item, index) => {
+        const points = getPoints(seriesValues[index], width, height, padding, chartDomain)
+        const shape = linePath(points)
+        const fillShape = areaPath(points, height - padding.bottom)
+        const lastPoint = points[points.length - 1]
+
+        return (
+          <g key={item.key}>
+            {item.fillOpacity ? <path d={fillShape} fill={`url(#${id}-${item.key}-fill)`} /> : null}
+            <motion.path
+              d={shape}
+              fill="none"
+              stroke={item.color}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.9, delay: index * 0.08, ease: 'easeOut' }}
+            />
+            <circle cx={lastPoint.x} cy={lastPoint.y} r="4.5" fill={item.color} />
+            <circle cx={lastPoint.x} cy={lastPoint.y} r="9" fill={item.color} fillOpacity="0.12" />
+          </g>
+        )
+      })}
+
+      {labels.map((label, index) => {
+        const x = padding.left + (index / Math.max(labels.length - 1, 1)) * (width - padding.left - padding.right)
+        return (
+          <text
+            key={label}
+            x={x}
+            y={height - 8}
+            textAnchor="middle"
+            className="fill-slate-500 text-[10px] font-semibold uppercase tracking-[0.2em]"
+          >
+            {label}
+          </text>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -328,32 +596,28 @@ function GaugeMetricCard({
   series,
   compact = false,
 }: GaugeMetricProps) {
-  const delta = series.at(-1)! - series[0]!
-  const positive = delta >= 0
-
   return (
-    <div className={`metric-card ${compact ? 'metric-card-compact' : ''}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="dashboard-kicker">{label}</p>
-          <p className="dashboard-metric mt-2">{display}</p>
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            {detail}
-          </p>
-        </div>
-        <div className="relative flex h-[84px] w-[84px] items-center justify-center">
-          <GaugeRing value={value} max={100} color={accent} />
-          <span className="absolute text-sm font-semibold" style={{ color: accent }}>
-            {Math.round(value)}
-          </span>
-        </div>
-      </div>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <Sparkline values={series} color={accent} />
-        <span className={`text-xs font-semibold ${positive ? 'text-emerald-300' : 'text-rose-300'}`}>
-          {positive ? '+' : ''}
-          {delta.toFixed(0)} pts
+    <div className={cn(GLASS_PANEL, compact ? 'p-4' : 'p-5')}>
+      <div className="flex items-center justify-between gap-3">
+        <p className={KICKER_CLASS}>{compact ? 'Quality Channel' : 'Command Metric'}</p>
+        <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
+          {compact ? 'Audit' : 'Telemetry'}
         </span>
+      </div>
+
+      <div className={cn('mt-4 grid items-center gap-4', compact ? 'sm:grid-cols-[112px_1fr]' : 'sm:grid-cols-[136px_1fr]')}>
+        <div className="flex flex-col items-center">
+          <RadialGauge id={label} value={value} display={display} compact={compact} />
+          <p className="mt-3 text-center text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">{label}</p>
+        </div>
+
+        <div className="min-w-0">
+          <p className={cn(compact ? 'text-2xl' : 'text-[30px]', 'font-bold leading-none text-white')}>{display}</p>
+          <p className="mt-3 text-sm leading-6 text-slate-400">{detail}</p>
+          <div className="mt-5">
+            <Sparkline id={label} values={series} color={accent} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -408,6 +672,9 @@ export default function Dashboard() {
   ).length
 
   const watchRegions = [...mockGSERegions].sort((left, right) => right.gseScore - left.gseScore).slice(0, 5)
+  const escalatingTheatreLabel = escalationRegions.length
+    ? escalationRegions.map((region) => region.regionName).join(', ')
+    : 'No theatres currently escalating'
 
   const commandMetrics = [
     {
@@ -537,9 +804,10 @@ export default function Dashboard() {
       id: pipeline.id,
       kind: 'pipeline' as const,
       title: `${pipeline.pipelineName} ${pipeline.status.toLowerCase()}`,
-      detail: pipeline.status === 'FAILED'
-        ? String(pipeline.nodeResults?.error ?? 'Recovery playbook running')
-        : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'autonomous execution in progress' : 'run closed cleanly'}`,
+      detail:
+        pipeline.status === 'FAILED'
+          ? String(pipeline.nodeResults?.error ?? 'Recovery playbook running')
+          : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'autonomous execution in progress' : 'run closed cleanly'}`,
       timestamp: pipeline.startedAt,
       status: pipeline.status,
       live: pipeline.status === 'RUNNING',
@@ -575,30 +843,39 @@ export default function Dashboard() {
   }
 
   return (
-    <motion.div className="space-y-6" variants={STAGGER.container} initial="hidden" animate="visible">
-      <motion.section variants={STAGGER.item} className="grid gap-6 xl:grid-cols-[1.45fr_1fr]">
-        <div className="glass-card dashboard-hero p-6">
+    <motion.div
+      className="relative overflow-hidden rounded-[28px] border border-white/[0.06] bg-[#0A0F1C] p-4 sm:p-6 xl:p-8"
+      variants={STAGGER.container}
+      initial="hidden"
+      animate="visible"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,200,255,0.16),transparent_30%),radial-gradient(circle_at_top_right,rgba(79,217,198,0.12),transparent_28%),radial-gradient(circle_at_bottom_center,rgba(15,23,42,0.18),transparent_40%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:48px_48px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_14%,transparent_86%,rgba(255,255,255,0.03))]" />
+
+      <div className="relative z-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-4 p-6 lg:p-7')}>
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
           <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
-                <p className="dashboard-kicker">Environmental Intelligence Control Center</p>
-                <h1 className="dashboard-display mt-2">Sentinel Command Grid</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className={KICKER_CLASS}>Environmental Intelligence Control Center</p>
+                <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                  Sentinel Command Grid
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
                   Cross-domain hazard surveillance, AI-assisted classification, and data integrity diagnostics in a
                   single operating picture for environmental response teams.
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <span className="signal-chip">
-                  <Radio className="h-3.5 w-3.5 text-emerald-300" />
-                  Live mesh
-                </span>
-                <span className="signal-chip">
+                <LiveBadge label="LIVE MESH" tone="green" />
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
                   <Globe className="h-3.5 w-3.5 text-cyan-300" />
                   {watchRegions.length} theatres under watch
                 </span>
-                <span className="signal-chip">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
                   <Satellite className="h-3.5 w-3.5 text-teal-300" />
                   {mockSatellitePasses.length} orbital passes queued
                 </span>
@@ -606,103 +883,123 @@ export default function Dashboard() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="hero-stat">
-                <span className="hero-stat-label">Escalating theatres</span>
-                <span className="hero-stat-value">{escalationRegions.length}</span>
-                <span className="hero-stat-detail">
-                  {escalationRegions.map((region) => region.regionName).join(', ')}
-                </span>
+              <div className={cn(SUB_PANEL, 'p-4')}>
+                <p className={KICKER_CLASS}>Escalating theatres</p>
+                <p className="mt-3 text-[30px] font-bold leading-none text-white">{escalationRegions.length}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{escalatingTheatreLabel}</p>
               </div>
-              <div className="hero-stat">
-                <span className="hero-stat-label">Critical infrastructure at risk</span>
-                <span className="hero-stat-value">{highExposureInfrastructure}</span>
-                <span className="hero-stat-detail">Assets already above high exposure threshold</span>
+              <div className={cn(SUB_PANEL, 'p-4')}>
+                <p className={KICKER_CLASS}>Critical infrastructure at risk</p>
+                <p className="mt-3 text-[30px] font-bold leading-none text-white">{highExposureInfrastructure}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
+                  Assets already above high exposure threshold
+                </p>
               </div>
-              <div className="hero-stat">
-                <span className="hero-stat-label">Tracking mesh</span>
-                <span className="hero-stat-value">{mockAircraft.length + mockVessels.length}</span>
-                <span className="hero-stat-detail">
+              <div className={cn(SUB_PANEL, 'p-4')}>
+                <p className={KICKER_CLASS}>Tracking mesh</p>
+                <p className="mt-3 text-[30px] font-bold leading-none text-white">
+                  {mockAircraft.length + mockVessels.length}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">
                   {mockAircraft.length} airborne and {mockVessels.length} maritime tracks correlated
-                </span>
+                </p>
               </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.84)] p-4">
-                <div className="mb-4 flex items-center justify-between">
+            <div className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
+              <div className={cn(SUB_PANEL, 'p-4')}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="dashboard-kicker">Threat pressure</p>
-                    <h2 className="dashboard-section-title mt-1">24-hour escalation cadence</h2>
+                    <p className={KICKER_CLASS}>Threat pressure</p>
+                    <h2 className="mt-2 text-lg font-semibold text-white">24-hour escalation cadence</h2>
                   </div>
-                  <span className="badge-live badge-live-blue">LIVE</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <LiveBadge tone="blue" />
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                        Throughput
+                      </span>
+                      <span className="rounded-full border border-teal-400/20 bg-teal-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-teal-200">
+                        Threat
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={COMMAND_PRESSURE_SERIES}>
-                      <defs>
-                        <linearGradient id="threatArea" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#4fd9c6" stopOpacity={0.28} />
-                          <stop offset="100%" stopColor="#4fd9c6" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="throughputArea" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#67c8ff" stopOpacity={0.24} />
-                          <stop offset="100%" stopColor="#67c8ff" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="rgba(148, 163, 184, 0.08)" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} width={28} />
-                      <Tooltip contentStyle={chartTooltipStyle} />
-                      <Area type="monotone" dataKey="throughput" stroke="#67c8ff" strokeWidth={2} fill="url(#throughputArea)" />
-                      <Area type="monotone" dataKey="threat" stroke="#4fd9c6" strokeWidth={2} fill="url(#threatArea)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+
+                <div className="mt-4">
+                  <OperationalChart
+                    id="command-pressure"
+                    data={COMMAND_PRESSURE_SERIES}
+                    domain={[35, 100]}
+                    series={[
+                      { key: 'throughput', label: 'Throughput', color: '#67c8ff', fillOpacity: 0.2 },
+                      { key: 'threat', label: 'Threat', color: '#4fd9c6', fillOpacity: 0.16 },
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.84)] p-4">
-                <div className="mb-4 flex items-center justify-between">
+              <div className={cn(SUB_PANEL, 'p-4')}>
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="dashboard-kicker">Watchlist</p>
-                    <h2 className="dashboard-section-title mt-1">Highest pressure regions</h2>
+                    <p className={KICKER_CLASS}>Watchlist</p>
+                    <h2 className="mt-2 text-lg font-semibold text-white">Highest pressure regions</h2>
                   </div>
-                  <span className="text-xs font-medium text-slate-400">Updated every 5 min</span>
+                  <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Updated 5m</span>
                 </div>
-                <div className="space-y-3">
+
+                <div className="mt-4 space-y-3">
                   {watchRegions.map((region) => {
-                    const trendIcon = TREND_ICON[region.trend]
-                    const RegionTrendIcon = trendIcon
+                    const RegionTrendIcon = TREND_ICON[region.trend]
                     const tone = THREAT_STYLES[region.threatLevel]
 
                     return (
-                      <div key={region.regionId} className="watchlist-row">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-white">{region.regionName}</p>
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
-                              style={{ background: tone.bg, color: tone.text }}
-                            >
-                              {region.threatLevel}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {region.eventCount} events correlated | Driver: {region.topCategory.replace(/_/g, ' ')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-24">
-                            <div className="score-track">
-                              <div
-                                className="score-fill"
-                                style={{ width: `${Math.min(region.gseScore, 100)}%`, background: tone.bar }}
-                              />
+                      <div
+                        key={region.regionId}
+                        className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 transition-all duration-200 hover:scale-[1.01]"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-white">{region.regionName}</p>
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em]"
+                                style={{ background: tone.bg, color: tone.text }}
+                              >
+                                {region.threatLevel}
+                              </span>
                             </div>
-                            <p className="mt-1 text-right text-xs font-medium text-slate-300">{region.gseScore.toFixed(1)}</p>
+                            <p className="mt-2 text-xs leading-5 text-slate-400">
+                              {region.eventCount} events correlated | Driver: {region.topCategory.replace(/_/g, ' ')}
+                            </p>
                           </div>
-                          <RegionTrendIcon
-                            className={`h-4 w-4 ${region.trend === 'up' ? 'text-amber-300' : region.trend === 'down' ? 'text-emerald-300' : 'text-slate-500'}`}
-                          />
+
+                          <div className="flex items-center gap-3">
+                            <div className="w-24">
+                              <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${Math.min(region.gseScore, 100)}%`,
+                                    background: `linear-gradient(90deg, ${tone.bar}, rgba(255,255,255,0.9))`,
+                                  }}
+                                />
+                              </div>
+                              <p className="mt-2 text-right text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+                                {region.gseScore.toFixed(1)}
+                              </p>
+                            </div>
+                            <RegionTrendIcon
+                              className={cn(
+                                'h-4 w-4',
+                                region.trend === 'up'
+                                  ? 'text-amber-300'
+                                  : region.trend === 'down'
+                                    ? 'text-emerald-300'
+                                    : 'text-slate-500',
+                              )}
+                            />
+                          </div>
                         </div>
                       </div>
                     )
@@ -711,30 +1008,26 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.section>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-          {commandMetrics.map((metric) => (
-            <motion.div key={metric.label} variants={STAGGER.item}>
-              <GaugeMetricCard {...metric} />
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
+        {commandMetrics.map((metric) => (
+          <motion.section key={metric.label} variants={STAGGER.item} className="xl:col-span-1">
+            <GaugeMetricCard {...metric} />
+          </motion.section>
+        ))}
 
-      <motion.section variants={STAGGER.item} className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="glass-card p-5">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-2 p-5')}>
           <SectionHeader
             title="Hazard Monitoring Matrix"
             subtitle="Severity indicators"
             aside={
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                <span className="signal-chip">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200">
+                  <AlertTriangle className="h-3.5 w-3.5" />
                   {activeHazards.filter((event) => event.severity === 'CRITICAL').length} critical
                 </span>
-                <span className="signal-chip">
-                  <Wind className="h-3.5 w-3.5 text-cyan-300" />
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                  <Wind className="h-3.5 w-3.5" />
                   {Math.round(average(activeHazards.map((event) => (event.confidence ?? 0.85) * 100)))}% mean confidence
                 </span>
               </div>
@@ -746,142 +1039,182 @@ export default function Dashboard() {
               const severityStyle = SEVERITY_STYLES[event.alertLevel]
               const matchingAssessment = mockRiskAssessments.find((assessment) => assessment.hazardType === event.type)
               const exposure = impactedAssetEstimate(matchingAssessment?.riskScore ?? 58)
+              const isLive = REFERENCE_NOW_MS - new Date(event.startTime).getTime() <= 12 * 60 * 60 * 1000
 
               return (
                 <article
                   key={event.id}
-                  className="rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.8)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                  className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-black/20 px-4 py-4 transition-all duration-200 hover:scale-[1.01]"
                 >
+                  <span
+                    className="absolute inset-y-0 left-0 w-1 rounded-l-xl"
+                    style={{ background: severityStyle.text, boxShadow: `0 0 16px ${severityStyle.glow}` }}
+                  />
+
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className="inline-flex h-2.5 w-2.5 rounded-full"
-                          style={{ background: severityStyle.text, boxShadow: `0 0 12px ${severityStyle.glow}` }}
-                        />
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-white">
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-white">
                           {formatHazardLabel(event.type)}
                         </h3>
-                        {REFERENCE_NOW_MS - new Date(event.startTime).getTime() <= 12 * 60 * 60 * 1000 && (
-                          <span className="badge-live badge-live-red">LIVE</span>
-                        )}
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em]"
+                          style={{
+                            background: severityStyle.bg,
+                            color: severityStyle.text,
+                            border: `1px solid ${severityStyle.border}`,
+                          }}
+                        >
+                          {event.severity}
+                        </span>
+                        {isLive ? <LiveBadge label="LIVE" tone="red" /> : null}
                       </div>
                       <p className="mt-2 text-sm text-slate-300">
                         {nearestRegionLabel(event.geometry as GeoJSONPoint)} | {formatRelativeTime(event.startTime)}
                       </p>
                     </div>
 
-                    <span
-                      className="inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]"
-                      style={{
-                        background: severityStyle.bg,
-                        color: severityStyle.text,
-                        border: `1px solid ${severityStyle.border}`,
-                      }}
-                    >
-                      {event.severity}
-                    </span>
+                    <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
+                      Alert {event.alertLevel}
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <div className="monitoring-cell">
-                      <span className="monitoring-cell-label">Confidence</span>
-                      <span className="monitoring-cell-value">{Math.round((event.confidence ?? 0.85) * 100)}%</span>
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <p className={KICKER_CLASS}>Confidence</p>
+                      <p className="mt-2 text-2xl font-bold leading-none text-white">
+                        {Math.round((event.confidence ?? 0.85) * 100)}%
+                      </p>
                     </div>
-                    <div className="monitoring-cell">
-                      <span className="monitoring-cell-label">Risk model</span>
-                      <span className="monitoring-cell-value">{(matchingAssessment?.riskScore ?? 58).toFixed(1)}</span>
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <p className={KICKER_CLASS}>Risk model</p>
+                      <p className="mt-2 text-2xl font-bold leading-none text-white">
+                        {(matchingAssessment?.riskScore ?? 58).toFixed(1)}
+                      </p>
                     </div>
-                    <div className="monitoring-cell">
-                      <span className="monitoring-cell-label">Impacted assets</span>
-                      <span className="monitoring-cell-value">{exposure}</span>
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <p className={KICKER_CLASS}>Impacted assets</p>
+                      <p className="mt-2 text-2xl font-bold leading-none text-white">{exposure}</p>
                     </div>
-                    <div className="monitoring-cell">
-                      <span className="monitoring-cell-label">Status</span>
-                      <span className="monitoring-cell-value">
-                        {event.severity === 'CRITICAL' ? 'Escalating' : event.severity === 'HIGH' ? 'Containment' : 'Observed'}
-                      </span>
+                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <p className={KICKER_CLASS}>Status</p>
+                      <p className="mt-2 text-lg font-semibold leading-none text-white">
+                        {event.severity === 'CRITICAL'
+                          ? 'Escalating'
+                          : event.severity === 'HIGH'
+                            ? 'Containment'
+                            : 'Observed'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="mt-4">
-                    <div className="score-track">
-                      <div
-                        className="score-fill"
-                        style={{
-                          width: `${(HAZARD_SEVERITY_WEIGHT[event.severity] / 4) * 100}%`,
-                          background: `linear-gradient(90deg, ${severityStyle.text}, rgba(255,255,255,0.3))`,
-                        }}
-                      />
-                    </div>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${(HAZARD_SEVERITY_WEIGHT[event.severity] / 4) * 100}%`,
+                        background: `linear-gradient(90deg, ${severityStyle.text}, rgba(255,255,255,0.9))`,
+                      }}
+                    />
                   </div>
                 </article>
               )
             })}
           </div>
-        </div>
+        </motion.section>
 
-        <div className="glass-card p-5">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-2 p-5')}>
           <SectionHeader
             title="Real-Time Event Feed"
             subtitle="Operator timeline"
-            aside={<span className="badge-live badge-live-green">Live relay</span>}
+            aside={<LiveBadge label="LIVE RELAY" tone="green" />}
           />
 
           <div className="mt-5 space-y-3">
             {liveFeed.map((item) => {
               const tone = feedTone[item.kind]
+              const statusTone = getStatusTone(item.status)
+
               return (
-                <div key={item.id} className="feed-row">
-                  <div className="feed-row-dot" style={{ background: tone.color, boxShadow: `0 0 14px ${tone.color}55` }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                        style={{ background: tone.bg, color: tone.color, border: `1px solid ${tone.border}` }}
-                      >
-                        {item.kind}
-                      </span>
-                      {item.live && <span className="badge-live badge-live-blue">LIVE</span>}
+                <div
+                  key={item.id}
+                  className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 transition-all duration-200 hover:scale-[1.01]"
+                >
+                  <span
+                    className="absolute inset-y-0 left-0 w-1 rounded-l-xl"
+                    style={{ background: tone.color, boxShadow: `0 0 16px ${tone.color}55` }}
+                  />
+
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500">
+                          {item.kind}
+                        </span>
+                        {item.live ? <LiveBadge tone="green" /> : null}
+                      </div>
+                      <p className="mt-2 text-sm font-medium leading-6 text-white">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{item.detail}</p>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-white">{item.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">{item.detail}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-medium text-slate-300">{formatRelativeTime(item.timestamp)}</p>
-                    <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-slate-500">{item.status}</p>
+
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span
+                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em]"
+                        style={{
+                          background: statusTone.bg,
+                          color: statusTone.text,
+                          border: `1px solid ${statusTone.border}`,
+                        }}
+                      >
+                        {item.status}
+                      </span>
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+                        {formatRelativeTime(item.timestamp)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
-      </motion.section>
+        </motion.section>
 
-      <motion.section variants={STAGGER.item} className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr_0.95fr]">
-        <div className="glass-card p-5">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-2 p-5')}>
           <SectionHeader
             title="AI Pipeline Health"
             subtitle="Autonomous inference and orchestration"
             aside={
               <div className="text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Current state</p>
-                <p className="mt-1 text-sm font-semibold text-white">Nominal with elevated decision queue</p>
+                <p className={KICKER_CLASS}>Current state</p>
+                <p className="mt-2 text-sm font-semibold text-white">Nominal with elevated decision queue</p>
               </div>
             }
           />
 
-          <div className="mt-5 h-[210px] rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.84)] p-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={PIPELINE_TELEMETRY_SERIES}>
-                <CartesianGrid stroke="rgba(148, 163, 184, 0.08)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis domain={[70, 100]} tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} width={28} />
-                <Tooltip contentStyle={chartTooltipStyle} />
-                <Line type="monotone" dataKey="health" stroke="#77e19c" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="autonomy" stroke="#67c8ff" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className={cn(SUB_PANEL, 'mt-5 p-4')}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                  Health
+                </span>
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                  Autonomy
+                </span>
+              </div>
+              <LiveBadge tone="blue" />
+            </div>
+
+            <div className="mt-4">
+              <OperationalChart
+                id="pipeline-telemetry"
+                data={PIPELINE_TELEMETRY_SERIES}
+                domain={[70, 100]}
+                series={[
+                  { key: 'health', label: 'Health', color: '#77e19c' },
+                  { key: 'autonomy', label: 'Autonomy', color: '#67c8ff' },
+                ]}
+              />
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -889,117 +1222,139 @@ export default function Dashboard() {
               const Icon = stage.icon
 
               return (
-                <div key={stage.name} className="pipeline-stage-row">
-                  <div className="flex items-start gap-3">
-                    <div className="pipeline-stage-icon">
-                      <Icon className="h-4 w-4" style={{ color: stage.accent }} />
+                <div
+                  key={stage.name}
+                  className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 transition-all duration-200 hover:scale-[1.01]"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2">
+                        <Icon className="h-4 w-4" style={{ color: stage.accent }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{stage.name}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{stage.detail}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{stage.name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{stage.detail}</p>
-                    </div>
-                  </div>
-                  <div className="min-w-[140px]">
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>{stage.latency}</span>
-                      <span className="font-semibold" style={{ color: stage.accent }}>
-                        {stage.health}%
-                      </span>
-                    </div>
-                    <div className="score-track mt-2">
-                      <div className="score-fill" style={{ width: `${stage.health}%`, background: stage.accent }} />
+
+                    <div className="min-w-[180px]">
+                      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        <span>{stage.latency}</span>
+                        <span style={{ color: stage.accent }}>{stage.health}%</span>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+                        <div className="h-full rounded-full" style={{ width: `${stage.health}%`, background: stage.accent }} />
+                      </div>
                     </div>
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
+        </motion.section>
 
-        <div className="glass-card p-5">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-1 p-5')}>
           <SectionHeader
             title="Regional Threat Surface"
             subtitle="Global severity index"
             aside={
               <div className="text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Peak GSE</p>
-                <p className="mt-1 text-sm font-semibold text-white">{highestGse.toFixed(1)} / 100</p>
+                <p className={KICKER_CLASS}>Peak GSE</p>
+                <p className="mt-2 text-sm font-semibold text-white">{highestGse.toFixed(1)} / 100</p>
               </div>
             }
           />
 
-          <div className="mt-5 h-[210px] rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.84)] p-3">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={REGION_HEAT_SERIES}>
-                <defs>
-                  <linearGradient id="gseSurface" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4fd9c6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#4fd9c6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(148, 163, 184, 0.08)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis domain={[35, 85]} tick={{ fill: '#6f8197', fontSize: 11 }} tickLine={false} axisLine={false} width={28} />
-                <Tooltip contentStyle={chartTooltipStyle} />
-                <Area type="monotone" dataKey="gse" stroke="#4fd9c6" strokeWidth={2.5} fill="url(#gseSurface)" />
-                <Line type="monotone" dataKey="volatility" stroke="#fb923c" strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className={cn(SUB_PANEL, 'mt-5 p-4')}>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-teal-400/20 bg-teal-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-teal-200">
+                GSE
+              </span>
+              <span className="rounded-full border border-orange-400/20 bg-orange-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-orange-200">
+                Volatility
+              </span>
+            </div>
+            <div className="mt-4">
+              <OperationalChart
+                id="regional-surface"
+                data={REGION_HEAT_SERIES}
+                domain={[35, 85]}
+                series={[
+                  { key: 'gse', label: 'GSE', color: '#4fd9c6', fillOpacity: 0.2 },
+                  { key: 'volatility', label: 'Volatility', color: '#fb923c' },
+                ]}
+              />
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">
             {watchRegions.slice(0, 4).map((region) => {
               const tone = THREAT_STYLES[region.threatLevel]
               const TrendIcon = TREND_ICON[region.trend]
+
               return (
-                <div key={region.regionId} className="watchlist-row">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">{region.regionName}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {region.eventCount} correlated events | Driver: {region.topCategory.replace(/_/g, ' ')}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-white">{region.gseScore.toFixed(1)}</p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.18em]" style={{ color: tone.text }}>
-                        {region.threatLevel}
+                <div
+                  key={region.regionId}
+                  className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 transition-all duration-200 hover:scale-[1.01]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{region.regionName}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">
+                        {region.eventCount} correlated events | Driver: {region.topCategory.replace(/_/g, ' ')}
                       </p>
                     </div>
-                    <TrendIcon
-                      className={`h-4 w-4 ${region.trend === 'up' ? 'text-amber-300' : region.trend === 'down' ? 'text-emerald-300' : 'text-slate-500'}`}
-                    />
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-lg font-semibold leading-none text-white">{region.gseScore.toFixed(1)}</p>
+                        <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: tone.text }}>
+                          {region.threatLevel}
+                        </p>
+                      </div>
+                      <TrendIcon
+                        className={cn(
+                          'h-4 w-4',
+                          region.trend === 'up'
+                            ? 'text-amber-300'
+                            : region.trend === 'down'
+                              ? 'text-emerald-300'
+                              : 'text-slate-500',
+                        )}
+                      />
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
-        </div>
+        </motion.section>
 
-        <div className="glass-card p-5">
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-1 p-5')}>
           <SectionHeader
             title="Data Quality Metrics"
             subtitle="Freshness, completeness, agreement"
             aside={
               <div className="text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Catalog health</p>
-                <p className="mt-1 text-sm font-semibold text-white">{dataFidelity}% trusted</p>
+                <p className={KICKER_CLASS}>Catalog health</p>
+                <p className="mt-2 text-sm font-semibold text-white">{dataFidelity}% trusted</p>
               </div>
             }
           />
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3">
             {qualityMetrics.map((metric) => (
               <GaugeMetricCard key={metric.label} {...metric} compact />
             ))}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/6 bg-[rgba(7,18,30,0.84)] p-4">
-            <div className="flex items-center justify-between">
-              <p className="dashboard-kicker">Source integrity</p>
-              <span className="text-xs font-medium text-slate-500">Current window</span>
+          <div className={cn(SUB_PANEL, 'mt-4 p-4')}>
+            <div className="flex items-center justify-between gap-3">
+              <p className={KICKER_CLASS}>Source integrity</p>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Current window</span>
             </div>
-            <div className="mt-3 space-y-3">
+
+            <div className="mt-4 space-y-3">
               {mockDataSources.slice(0, 4).map((source) => {
                 const sourceScore = clamp(
                   92
@@ -1010,57 +1365,60 @@ export default function Dashboard() {
 
                 return (
                   <div key={source.id}>
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.22em]">
                       <span className="text-slate-300">{source.name}</span>
-                      <span className="font-semibold text-white">{Math.round(sourceScore)}%</span>
+                      <span className="text-white">{Math.round(sourceScore)}%</span>
                     </div>
-                    <div className="score-track mt-2">
-                      <div className="score-fill" style={{ width: `${sourceScore}%`, background: 'linear-gradient(90deg, #67c8ff, #4fd9c6)' }} />
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${sourceScore}%`, background: 'linear-gradient(90deg, #67c8ff, #4fd9c6)' }}
+                      />
                     </div>
                   </div>
                 )
               })}
             </div>
           </div>
-        </div>
-      </motion.section>
+        </motion.section>
 
-      <motion.section variants={STAGGER.item} className="glass-card p-5">
-        <SectionHeader
-          title="Pipeline Operations"
-          subtitle="Recent execution status"
-          aside={
-            <div className="flex flex-wrap items-center gap-2">
-              {(['SUCCEEDED', 'RUNNING', 'FAILED'] as const).map((status) => {
-                const count = mockPipelineExecutions.filter((pipeline) => pipeline.status === status).length
-                const tone = PIPELINE_STATUS_STYLES[status]
-                return (
-                  <span
-                    key={status}
-                    className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
-                    style={{ background: tone.bg, color: tone.text, border: `1px solid ${tone.border}` }}
-                  >
-                    {count} {status.toLowerCase()}
-                  </span>
-                )
-              })}
-            </div>
-          }
-        />
+        <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-4 p-5')}>
+          <SectionHeader
+            title="Pipeline Operations"
+            subtitle="Recent execution status"
+            aside={
+              <div className="flex flex-wrap items-center gap-2">
+                {(['SUCCEEDED', 'RUNNING', 'FAILED'] as const).map((status) => {
+                  const count = mockPipelineExecutions.filter((pipeline) => pipeline.status === status).length
+                  const tone = PIPELINE_STATUS_STYLES[status]
 
-        <div className="mt-5 grid gap-3">
-          {latestPipelineRuns.map((pipeline) => {
-            const tone = PIPELINE_STATUS_STYLES[pipeline.status]
-            const duration = pipeline.completedAt && pipeline.startedAt
-              ? `${Math.round((new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime()) / 1000)} sec`
-              : 'In progress'
+                  return (
+                    <span
+                      key={status}
+                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em]"
+                      style={{ background: tone.bg, color: tone.text, border: `1px solid ${tone.border}` }}
+                    >
+                      {count} {status.toLowerCase()}
+                    </span>
+                  )
+                })}
+              </div>
+            }
+          />
 
-            return (
-              <PipelineRow key={pipeline.id} pipeline={pipeline} duration={duration} tone={tone} />
-            )
-          })}
-        </div>
-      </motion.section>
+          <div className="mt-5 grid gap-3">
+            {latestPipelineRuns.map((pipeline) => {
+              const tone = PIPELINE_STATUS_STYLES[pipeline.status]
+              const duration =
+                pipeline.completedAt && pipeline.startedAt
+                  ? `${Math.round((new Date(pipeline.completedAt).getTime() - new Date(pipeline.startedAt).getTime()) / 1000)} sec`
+                  : 'In progress'
+
+              return <PipelineRow key={pipeline.id} pipeline={pipeline} duration={duration} tone={tone} />
+            })}
+          </div>
+        </motion.section>
+      </div>
     </motion.div>
   )
 }
@@ -1081,40 +1439,50 @@ function PipelineRow({
     : 'No node telemetry available yet'
 
   return (
-    <div className="pipeline-row">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold text-white">{pipeline.pipelineName}</p>
-          <span
-            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
-            style={{ background: tone.bg, color: tone.text, border: `1px solid ${tone.border}` }}
-          >
-            {pipeline.status}
-          </span>
-        </div>
-        <p className="mt-2 text-xs leading-5 text-slate-400">{outputSummary}</p>
-      </div>
+    <div className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-black/20 px-4 py-4 transition-all duration-200 hover:scale-[1.01]">
+      <span className="absolute inset-y-0 left-0 w-1 rounded-l-xl" style={{ background: tone.text }} />
 
-      <div className="grid min-w-[240px] gap-3 sm:grid-cols-3">
-        <div className="pipeline-stat">
-          <Clock className="h-3.5 w-3.5 text-slate-500" />
-          <div>
-            <p className="pipeline-stat-label">Started</p>
-            <p className="pipeline-stat-value">{formatRelativeTime(pipeline.startedAt)}</p>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,0.8fr))]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-white">{pipeline.pipelineName}</p>
+            <span
+              className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em]"
+              style={{ background: tone.bg, color: tone.text, border: `1px solid ${tone.border}` }}
+            >
+              {pipeline.status}
+            </span>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-400">{outputSummary}</p>
+        </div>
+
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-start gap-2">
+            <Clock className="mt-0.5 h-3.5 w-3.5 text-slate-500" />
+            <div>
+              <p className={KICKER_CLASS}>Started</p>
+              <p className="mt-2 text-sm font-semibold text-white">{formatRelativeTime(pipeline.startedAt)}</p>
+            </div>
           </div>
         </div>
-        <div className="pipeline-stat">
-          <Activity className="h-3.5 w-3.5 text-cyan-300" />
-          <div>
-            <p className="pipeline-stat-label">Duration</p>
-            <p className="pipeline-stat-value">{duration}</p>
+
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-start gap-2">
+            <Activity className="mt-0.5 h-3.5 w-3.5 text-cyan-300" />
+            <div>
+              <p className={KICKER_CLASS}>Duration</p>
+              <p className="mt-2 text-sm font-semibold text-white">{duration}</p>
+            </div>
           </div>
         </div>
-        <div className="pipeline-stat">
-          <ArrowUpRight className="h-3.5 w-3.5 text-emerald-300" />
-          <div>
-            <p className="pipeline-stat-label">Triggered by</p>
-            <p className="pipeline-stat-value capitalize">{pipeline.triggeredBy}</p>
+
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="flex items-start gap-2">
+            <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 text-emerald-300" />
+            <div>
+              <p className={KICKER_CLASS}>Triggered by</p>
+              <p className="mt-2 text-sm font-semibold capitalize text-white">{pipeline.triggeredBy}</p>
+            </div>
           </div>
         </div>
       </div>

@@ -1,88 +1,232 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Search, TrendingUp, TrendingDown, Minus, AlertTriangle, Globe, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import {
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  Globe,
+  Minus,
+  Search,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
-import { mockGSERegions, mockHazardEvents, mockFinancialIndicators } from '../lib/mock-data'
+import { PageErrorBanner, SkeletonBlock, SkeletonText } from '../components/AsyncState'
+import {
+  getCountries,
+  getCountry,
+  type CountryIntelResponse,
+  type CountrySummaryResponse,
+} from '../lib/api'
 
 const THREAT_STYLES: Record<string, { bg: string; text: string }> = {
-  STABLE:     { bg: 'rgba(52,211,153,0.08)', text: '#34d399' },
-  ELEVATED:   { bg: 'rgba(251,191,36,0.08)', text: '#fbbf24' },
+  STABLE: { bg: 'rgba(52,211,153,0.08)', text: '#34d399' },
+  ELEVATED: { bg: 'rgba(251,191,36,0.08)', text: '#fbbf24' },
   HEIGHTENED: { bg: 'rgba(249,115,22,0.08)', text: '#f97316' },
-  CRITICAL:   { bg: 'rgba(244,63,94,0.08)',  text: '#f43f5e' },
+  CRITICAL: { bg: 'rgba(244,63,94,0.08)', text: '#f43f5e' },
 }
 
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, stable: Minus }
 
-const COUNTRIES = [
-  { code: 'US', name: 'United States', region: 'north-america' },
-  { code: 'GB', name: 'United Kingdom', region: 'europe' },
-  { code: 'JP', name: 'Japan', region: 'east-asia' },
-  { code: 'DE', name: 'Germany', region: 'europe' },
-  { code: 'IN', name: 'India', region: 'south-asia' },
-  { code: 'CN', name: 'China', region: 'east-asia' },
-  { code: 'BR', name: 'Brazil', region: 'south-america' },
-  { code: 'AU', name: 'Australia', region: 'oceania' },
-  { code: 'NG', name: 'Nigeria', region: 'africa' },
-  { code: 'EG', name: 'Egypt', region: 'middle-east' },
-  { code: 'TR', name: 'Turkey', region: 'middle-east' },
-  { code: 'SA', name: 'Saudi Arabia', region: 'middle-east' },
-  { code: 'UA', name: 'Ukraine', region: 'europe' },
-  { code: 'PK', name: 'Pakistan', region: 'south-asia' },
-]
-
 const CATEGORIES = [
-  'conflict', 'terrorism', 'natural_disaster', 'cyber', 'political', 'health',
-  'economic', 'energy', 'migration', 'environmental', 'space', 'technology',
+  'conflict',
+  'terrorism',
+  'natural_disaster',
+  'cyber',
+  'political',
+  'health',
+  'economic',
+  'energy',
+  'migration',
+  'environmental',
+  'space',
+  'technology',
 ]
 
-function getCategoryScores(regionId: string): Array<{ category: string; score: number }> {
-  const seedMap: Record<string, number[]> = {
-    'middle-east': [85, 70, 30, 25, 65, 20, 45, 60, 55, 15, 5, 10],
-    'south-asia': [40, 55, 80, 15, 50, 45, 35, 30, 40, 50, 5, 8],
-    'europe': [15, 10, 20, 35, 55, 15, 40, 50, 40, 30, 15, 25],
-    'east-asia': [10, 5, 50, 30, 25, 20, 45, 20, 10, 35, 20, 40],
-    'north-america': [5, 8, 30, 40, 30, 15, 50, 25, 15, 25, 25, 35],
-    'africa': [55, 40, 45, 10, 50, 65, 40, 30, 50, 40, 2, 5],
-    'south-america': [20, 15, 35, 10, 40, 20, 35, 20, 25, 30, 3, 8],
-    'oceania': [2, 2, 25, 10, 10, 5, 15, 10, 5, 20, 5, 15],
-  }
-  const scores = seedMap[regionId] ?? CATEGORIES.map(() => 10)
-  return CATEGORIES.map((c, i) => ({ category: c, score: scores[i] ?? 10 }))
+function formatRegionLabel(regionId: string) {
+  return regionId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
-function getGSEHistory(baseScore: number) {
-  const data = []
-  for (let i = 30; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    data.push({
-      date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      gse: Math.max(0, baseScore + (Math.random() - 0.5) * 20 - i * 0.2),
-    })
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {}
+}
+
+function flattenRecord(value: Record<string, unknown>) {
+  const properties = asRecord(value.properties)
+  return { ...value, ...properties }
+}
+
+function toNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function toStringValue(value: unknown, fallback = 'Unknown') {
+  return typeof value === 'string' && value.length > 0 ? value : fallback
+}
+
+function deriveTrend(profile: CountryIntelResponse) {
+  if (profile.escalationAlert) return 'up' as const
+  if (profile.gseHistory.length >= 2) {
+    const first = profile.gseHistory[0]?.gse_score ?? 0
+    const last = profile.gseHistory.at(-1)?.gse_score ?? 0
+    if (last - first >= 4) return 'up' as const
+    if (first - last >= 4) return 'down' as const
   }
-  return data
+  return 'stable' as const
+}
+
+function normalizeCategoryScores(profile: CountryIntelResponse) {
+  return CATEGORIES.map((category) => ({
+    category,
+    score: profile.categories[category]?.score ?? 0,
+  }))
+}
+
+function normalizeHistory(profile: CountryIntelResponse) {
+  return profile.gseHistory.map((point) => ({
+    date: new Date(point.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    gse: point.gse_score,
+  }))
+}
+
+function normalizeFinancialIndicators(profile: CountryIntelResponse) {
+  return profile.financialIndicators.slice(0, 6).map((item, index) => {
+    const record = flattenRecord(asRecord(item))
+    const value = toNumber(record.value) ?? 0
+    const changePct = toNumber(record.changePct ?? record.change_percent)
+
+    return {
+      id: toStringValue(record.id, `${profile.countryCode}-financial-${index}`),
+      name: toStringValue(record.name, toStringValue(record.symbol, 'Unnamed indicator')),
+      value,
+      changePct,
+    }
+  })
+}
+
+function normalizeEvents(profile: CountryIntelResponse) {
+  return profile.activeEvents.slice(0, 5).map((item, index) => {
+    const record = flattenRecord(asRecord(item))
+
+    return {
+      id: toStringValue(record.id, `${profile.countryCode}-event-${index}`),
+      type: toStringValue(record.hazardType ?? record.type, 'UNKNOWN'),
+      severity: toStringValue(record.severity, 'MODERATE'),
+      timestamp: toStringValue(record.startTime ?? record.timestamp ?? record.date, new Date().toISOString()),
+    }
+  })
+}
+
+function CountryIntelSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+      <div className="glass-card overflow-hidden">
+        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <SkeletonBlock className="h-4 w-28" />
+        </div>
+        <div className="space-y-3 p-4">
+          {Array.from({ length: 8 }, (_, index) => (
+            <SkeletonBlock key={index} className="h-11 w-full" />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-6 lg:col-span-3">
+        <div className="glass-card p-6">
+          <SkeletonBlock className="h-7 w-52" />
+          <div className="mt-4 flex gap-3">
+            <SkeletonBlock className="h-10 w-24" />
+            <SkeletonBlock className="h-6 w-28" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="glass-card p-5">
+              <SkeletonBlock className="h-5 w-40" />
+              <div className="mt-4">
+                <SkeletonBlock className="h-64 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="glass-card p-5">
+          <SkeletonBlock className="h-5 w-44" />
+          <div className="mt-4">
+            <SkeletonText lines={6} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function CountryIntel() {
   const [search, setSearch] = useState('')
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0])
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>('')
 
-  const filtered = search
-    ? COUNTRIES.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.code.toLowerCase().includes(search.toLowerCase()))
-    : COUNTRIES
+  const countriesQuery = useQuery({
+    queryKey: ['countries'],
+    queryFn: ({ signal }) => getCountries(signal),
+    refetchInterval: 60_000,
+  })
 
-  const regionData = mockGSERegions.find((r) => r.regionId === selectedCountry.region)
-  const gseScore = regionData?.gseScore ?? 0
-  const threatLevel = regionData?.threatLevel ?? 'STABLE'
-  const trend = regionData?.trend ?? 'stable'
+  const countries = countriesQuery.data ?? []
 
-  const categoryScores = getCategoryScores(selectedCountry.region)
-  const gseHistory = getGSEHistory(gseScore)
+  useEffect(() => {
+    if (!selectedCountryCode && countries.length > 0) {
+      setSelectedCountryCode(countries[0].countryCode)
+    }
+  }, [countries, selectedCountryCode])
+
+  const countryQuery = useQuery({
+    queryKey: ['country-intel', selectedCountryCode],
+    queryFn: ({ signal }) => getCountry(selectedCountryCode, signal),
+    enabled: selectedCountryCode.length > 0,
+    refetchInterval: 60_000,
+  })
+
+  const filteredCountries = search
+    ? countries.filter((country) =>
+        country.countryName.toLowerCase().includes(search.toLowerCase())
+        || country.countryCode.toLowerCase().includes(search.toLowerCase()),
+      )
+    : countries
+
+  const selectedCountry = countries.find((country) => country.countryCode === selectedCountryCode) ?? countries[0]
+  const profile = countryQuery.data
+  const trend = profile ? deriveTrend(profile) : 'stable'
   const TrendIcon = TREND_ICON[trend]
-  const threatStyle = THREAT_STYLES[threatLevel]
+  const threatLevel = profile?.threatLevel ?? selectedCountry?.threatLevel ?? 'STABLE'
+  const threatStyle = THREAT_STYLES[threatLevel] ?? THREAT_STYLES.STABLE
+  const categoryScores = profile ? normalizeCategoryScores(profile) : []
+  const gseHistory = profile ? normalizeHistory(profile) : []
+  const financialIndicators = profile ? normalizeFinancialIndicators(profile) : []
+  const activeEvents = profile ? normalizeEvents(profile) : []
+
+  const handleRetry = () => {
+    void countriesQuery.refetch()
+    if (selectedCountryCode) {
+      void countryQuery.refetch()
+    }
+  }
+
+  const isInitialLoading = countriesQuery.isLoading || (selectedCountryCode.length > 0 && countryQuery.isLoading && !profile)
 
   return (
     <motion.div
@@ -91,235 +235,262 @@ export default function CountryIntel() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <Globe className="w-5 h-5 text-cyan-400" />
+          <Globe className="h-5 w-5 text-cyan-400" />
           <h1 className="text-lg font-bold text-white">Country Intelligence</h1>
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
             placeholder="Search country..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 rounded-lg text-sm text-white placeholder-[var(--text-muted)] focus:outline-none w-60 transition-colors focus-ring"
+            onChange={(event) => setSearch(event.target.value)}
+            className="focus-ring w-60 rounded-lg py-2 pl-9 pr-4 text-sm text-white placeholder-[var(--text-muted)] focus:outline-none"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--border-active)' }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)' }}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Country list */}
-        <div className="glass-card overflow-hidden">
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Countries by Risk</h2>
-          </div>
-          <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
-            {filtered.map((country) => {
-              const rd = mockGSERegions.find((r) => r.regionId === country.region)
-              const active = selectedCountry.code === country.code
-              const ts = THREAT_STYLES[rd?.threatLevel ?? 'STABLE']
-              return (
-                <button
-                  key={country.code}
-                  onClick={() => { setSelectedCountry(country); setSearch('') }}
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm transition-all"
-                  style={{
-                    background: active ? 'rgba(56,189,248,0.06)' : 'transparent',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    borderLeft: active ? '2px solid #38bdf8' : '2px solid transparent',
-                  }}
-                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(99,130,191,0.04)' }}
-                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-mono font-bold w-6" style={{ color: 'var(--text-muted)' }}>{country.code}</span>
-                    <span className={active ? 'text-cyan-400 font-medium' : 'text-white'}>{country.name}</span>
-                  </div>
-                  <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: ts.bg, color: ts.text }}
+      {countriesQuery.isError || countryQuery.isError ? (
+        <PageErrorBanner
+          title="Country intelligence refresh failed"
+          message="The page is retrying automatically. Retry now to request a fresh country profile from the backend."
+          onRetry={handleRetry}
+        />
+      ) : null}
+
+      {isInitialLoading ? (
+        <CountryIntelSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          <div className="glass-card overflow-hidden">
+            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <h2 className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                Countries by Risk
+              </h2>
+            </div>
+            <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
+              {filteredCountries.map((country) => {
+                const active = selectedCountryCode === country.countryCode
+                const tone = THREAT_STYLES[country.threatLevel] ?? THREAT_STYLES.STABLE
+
+                return (
+                  <button
+                    key={country.countryCode}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCountryCode(country.countryCode)
+                      setSearch('')
+                    }}
+                    className="w-full px-4 py-3 text-sm transition-all"
+                    style={{
+                      background: active ? 'rgba(56,189,248,0.06)' : 'transparent',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      borderLeft: active ? '2px solid #38bdf8' : '2px solid transparent',
+                    }}
                   >
-                    {rd?.gseScore?.toFixed(0) ?? '0'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Main content */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Country header */}
-          <div className="glass-card p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-white">{selectedCountry.name}</h2>
-                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-                  Region: {selectedCountry.region.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </p>
-              </div>
-              <div className="text-right flex flex-col items-end gap-2">
-                <div className="flex items-center gap-2">
-                  <span className={`text-3xl font-bold ${gseScore >= 60 ? 'gradient-text-rose' : gseScore >= 30 ? 'gradient-text-amber' : 'gradient-text-emerald'}`}>
-                    {gseScore.toFixed(1)}
-                  </span>
-                  <TrendIcon className={`w-5 h-5 ${trend === 'up' ? 'text-rose-400' : trend === 'down' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                </div>
-                <span
-                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase"
-                  style={{ background: threatStyle.bg, color: threatStyle.text, border: `1px solid ${threatStyle.text}22` }}
-                >
-                  {threatLevel}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Radar chart */}
-            <div className="glass-card p-5">
-              <h3 className="text-sm font-semibold text-white mb-3">Risk Category Breakdown</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={categoryScores} cx="50%" cy="50%" outerRadius="70%">
-                  <PolarGrid stroke="var(--border-subtle)" />
-                  <PolarAngleAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 8 }} />
-                  <Radar name="Risk" dataKey="score" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.15} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* GSE trend chart */}
-            <div className="glass-card p-5">
-              <h3 className="text-sm font-semibold text-white mb-3">GSE Trend (30 days)</h3>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={gseHistory}>
-                  <defs>
-                    <linearGradient id="gseGradCountry" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f97316" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
-                  <Area type="monotone" dataKey="gse" stroke="#f97316" strokeWidth={2} fill="url(#gseGradCountry)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Economic indicators */}
-            <div className="glass-card overflow-hidden">
-              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <h3 className="text-sm font-semibold text-white">Economic Indicators</h3>
-              </div>
-              <div>
-                {mockFinancialIndicators.slice(0, 6).map((fi, idx) => {
-                  const isUp = (fi.changePct ?? 0) >= 0
-                  return (
-                    <div
-                      key={fi.id}
-                      className="flex items-center justify-between px-5 py-3 table-row-hover"
-                      style={{ borderBottom: idx < 5 ? '1px solid var(--border-subtle)' : 'none' }}
-                    >
-                      <span className="text-sm text-white">{fi.name}</span>
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm text-white font-mono font-semibold">{fi.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                        <span className={`flex items-center gap-0.5 text-xs font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {isUp ? '+' : ''}{fi.changePct?.toFixed(2)}%
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5 text-left">
+                        <span className="w-6 text-[10px] font-bold font-mono" style={{ color: 'var(--text-muted)' }}>
+                          {country.countryCode}
+                        </span>
+                        <span className={active ? 'font-medium text-cyan-400' : 'text-white'}>
+                          {country.countryName}
                         </span>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Active events */}
-            <div className="glass-card overflow-hidden">
-              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <h3 className="text-sm font-semibold text-white">Active Events</h3>
-              </div>
-              <div>
-                {mockHazardEvents.slice(0, 5).map((e, idx) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center gap-3 px-5 py-3 text-sm table-row-hover"
-                    style={{ borderBottom: idx < 4 ? '1px solid var(--border-subtle)' : 'none' }}
-                  >
-                    <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${e.severity === 'CRITICAL' ? 'text-rose-400' : e.severity === 'HIGH' ? 'text-orange-400' : 'text-yellow-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-white font-medium">{e.type}</span>
                       <span
-                        className="text-[10px] font-semibold ml-2 px-1.5 py-0.5 rounded-full"
-                        style={{
-                          background: e.severity === 'CRITICAL' ? 'rgba(244,63,94,0.08)' : e.severity === 'HIGH' ? 'rgba(249,115,22,0.08)' : 'rgba(251,191,36,0.08)',
-                          color: e.severity === 'CRITICAL' ? '#f43f5e' : e.severity === 'HIGH' ? '#f97316' : '#fbbf24',
-                        }}
+                        className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{ background: tone.bg, color: tone.text }}
                       >
-                        {e.severity}
+                        {country.gseScore.toFixed(0)}
                       </span>
                     </div>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(e.startTime).toLocaleDateString()}</span>
-                  </div>
-                ))}
-              </div>
+                  </button>
+                )
+              })}
+              {filteredCountries.length === 0 ? (
+                <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
+                  No countries matched your search.
+                </p>
+              ) : null}
             </div>
           </div>
 
-          {/* Region Comparison Table */}
-          <div className="glass-card overflow-hidden">
-            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <h3 className="text-sm font-semibold text-white">Region Comparison</h3>
+          <div className="space-y-6 lg:col-span-3">
+            <div className="glass-card p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{profile?.countryName ?? selectedCountry?.countryName ?? 'Country'}</h2>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Region: {formatRegionLabel(profile?.regionId ?? selectedCountry?.regionId ?? 'unknown')}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-3xl font-bold ${profile && profile.gseScore >= 60 ? 'gradient-text-rose' : profile && profile.gseScore >= 30 ? 'gradient-text-amber' : 'gradient-text-emerald'}`}>
+                      {(profile?.gseScore ?? selectedCountry?.gseScore ?? 0).toFixed(1)}
+                    </span>
+                    <TrendIcon className={`h-5 w-5 ${trend === 'up' ? 'text-rose-400' : trend === 'down' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  </div>
+                  <span
+                    className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
+                    style={{ background: threatStyle.bg, color: threatStyle.text, border: `1px solid ${threatStyle.text}22` }}
+                  >
+                    {threatLevel}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <th className="text-left px-5 py-3 font-semibold">Region</th>
-                    <th className="text-left px-5 py-3 font-semibold">GSE Score</th>
-                    <th className="text-left px-5 py-3 font-semibold">Threat Level</th>
-                    <th className="text-left px-5 py-3 font-semibold">Events</th>
-                    <th className="text-left px-5 py-3 font-semibold">Top Category</th>
-                    <th className="text-left px-5 py-3 font-semibold">Trend</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockGSERegions.map((r) => {
-                    const T = TREND_ICON[r.trend]
-                    const ts = THREAT_STYLES[r.threatLevel]
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="glass-card p-5">
+                <h3 className="mb-3 text-sm font-semibold text-white">Risk Category Breakdown</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <RadarChart data={categoryScores} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke="var(--border-subtle)" />
+                    <PolarAngleAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 8 }} />
+                    <Radar name="Risk" dataKey="score" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.15} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="glass-card p-5">
+                <h3 className="mb-3 text-sm font-semibold text-white">GSE Trend (30 days)</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={gseHistory}>
+                    <defs>
+                      <linearGradient id="gseGradCountry" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
+                    <Area type="monotone" dataKey="gse" stroke="#f97316" strokeWidth={2} fill="url(#gseGradCountry)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="glass-card overflow-hidden">
+                <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h3 className="text-sm font-semibold text-white">Economic Indicators</h3>
+                </div>
+                <div>
+                  {financialIndicators.map((indicator, index) => {
+                    const isUp = (indicator.changePct ?? 0) >= 0
                     return (
-                      <tr key={r.regionId} className="table-row-hover" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td className="px-5 py-3 text-white font-medium">{r.regionName}</td>
-                        <td className="px-5 py-3 font-mono font-semibold text-white">{r.gseScore.toFixed(1)}</td>
-                        <td className="px-5 py-3">
-                          <span
-                            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
-                            style={{ background: ts.bg, color: ts.text }}
-                          >
-                            {r.threatLevel}
+                      <div
+                        key={indicator.id}
+                        className="table-row-hover flex items-center justify-between px-5 py-3"
+                        style={{ borderBottom: index < financialIndicators.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                      >
+                        <span className="text-sm text-white">{indicator.name}</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm font-semibold font-mono text-white">
+                            {indicator.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                           </span>
-                        </td>
-                        <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>{r.eventCount}</td>
-                        <td className="px-5 py-3 capitalize" style={{ color: 'var(--text-secondary)' }}>{r.topCategory.replace('_', ' ')}</td>
-                        <td className="px-5 py-3">
-                          <T className={`w-4 h-4 ${r.trend === 'up' ? 'text-rose-400' : r.trend === 'down' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                        </td>
-                      </tr>
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                            {indicator.changePct === null ? 'n/a' : `${isUp ? '+' : ''}${indicator.changePct.toFixed(2)}%`}
+                          </span>
+                        </div>
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
+                  {financialIndicators.length === 0 ? (
+                    <p className="px-5 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+                      No financial indicators were returned for this country.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="glass-card overflow-hidden">
+                <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <h3 className="text-sm font-semibold text-white">Active Events</h3>
+                </div>
+                <div>
+                  {activeEvents.map((event, index) => (
+                    <div
+                      key={event.id}
+                      className="table-row-hover flex items-center gap-3 px-5 py-3 text-sm"
+                      style={{ borderBottom: index < activeEvents.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                    >
+                      <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${event.severity === 'CRITICAL' ? 'text-rose-400' : event.severity === 'HIGH' ? 'text-orange-400' : 'text-yellow-400'}`} />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-white">{event.type}</span>
+                        <span
+                          className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                          style={{
+                            background: event.severity === 'CRITICAL' ? 'rgba(244,63,94,0.08)' : event.severity === 'HIGH' ? 'rgba(249,115,22,0.08)' : 'rgba(251,191,36,0.08)',
+                            color: event.severity === 'CRITICAL' ? '#f43f5e' : event.severity === 'HIGH' ? '#f97316' : '#fbbf24',
+                          }}
+                        >
+                          {event.severity}
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(event.timestamp).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                  {activeEvents.length === 0 ? (
+                    <p className="px-5 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+                      No active events were returned for this country.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card overflow-hidden">
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <h3 className="text-sm font-semibold text-white">Country Comparison</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <th className="px-5 py-3 text-left font-semibold">Country</th>
+                      <th className="px-5 py-3 text-left font-semibold">Region</th>
+                      <th className="px-5 py-3 text-left font-semibold">GSE Score</th>
+                      <th className="px-5 py-3 text-left font-semibold">Threat Level</th>
+                      <th className="px-5 py-3 text-left font-semibold">Events</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {countries.map((country: CountrySummaryResponse) => {
+                      const tone = THREAT_STYLES[country.threatLevel] ?? THREAT_STYLES.STABLE
+
+                      return (
+                        <tr key={country.countryCode} className="table-row-hover" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td className="px-5 py-3 font-medium text-white">{country.countryName}</td>
+                          <td className="px-5 py-3 capitalize" style={{ color: 'var(--text-secondary)' }}>
+                            {formatRegionLabel(country.regionId)}
+                          </td>
+                          <td className="px-5 py-3 font-semibold font-mono text-white">{country.gseScore.toFixed(1)}</td>
+                          <td className="px-5 py-3">
+                            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>
+                              {country.threatLevel}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>
+                            {country.eventCount}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </motion.div>
   )
 }
