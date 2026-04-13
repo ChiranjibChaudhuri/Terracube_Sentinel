@@ -39,6 +39,17 @@ export function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+export function asBoolean(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true
+    if (['false', '0', 'no', 'n', ''].includes(normalized)) return false
+  }
+  return Boolean(value)
+}
+
 export function normalizeEntityType(value: unknown) {
   return String(value ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase()
 }
@@ -173,7 +184,11 @@ export function normalizeVesselTracks(features: AwarenessFeature[]): Vessel[] {
         shipType: asString(properties.shipType, 'OTHER').toUpperCase() as Vessel['shipType'],
         speed: asNumber(properties.speed),
         course: asNumber(properties.course),
+        heading: asNumber(properties.heading),
         destination: asNullableString(properties.destination),
+        flag: asNullableString(properties.flag),
+        navStatus: asNullableString(properties.navStatus),
+        isFishing: asBoolean(properties.isFishing),
         source: asString(properties.source, 'awareness'),
         timestamp: asString(properties.timestamp, REFERENCE_NOW.toISOString()),
         geometry,

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Settings, Server, Palette, Info, Shield, Activity, Database, Cpu } from 'lucide-react'
+import { getApiBaseUrl } from '../lib/api'
 import { useAppStore } from '../lib/store'
 
 export default function SettingsPage() {
@@ -39,11 +40,11 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>REST API Base URL</label>
+            <label className="block text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)' }}>Agents API Base URL</label>
             <input
               type="text"
               readOnly
-              value="http://localhost:4000/api/v1"
+              value={getApiBaseUrl()}
               className="w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none cursor-not-allowed"
               style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
             />

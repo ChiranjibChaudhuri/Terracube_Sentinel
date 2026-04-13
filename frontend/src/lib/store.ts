@@ -10,6 +10,6 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  apiEndpoint: 'http://localhost:8080/graphql',
+  apiEndpoint: '/graphql',
   setApiEndpoint: (url: string) => set({ apiEndpoint: url }),
 }))

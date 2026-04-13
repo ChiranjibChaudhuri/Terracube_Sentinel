@@ -303,7 +303,11 @@ export interface Vessel {
   shipType: ShipType
   speed: number | null
   course: number | null
+  heading: number | null
   destination: string | null
+  flag: string | null
+  navStatus: string | null
+  isFishing: boolean
   source: string
   timestamp: string
   geometry: GeoJSON

@@ -220,7 +220,11 @@ const ODL_SCHEMAS: Record<string, string> = {
   shipType: ShipType!
   speed: Float
   course: Float
+  heading: Float
   destination: String
+  flag: String
+  navStatus: String
+  isFishing: Boolean
   source: String!
   timestamp: DateTime!
   geometry: JSON!

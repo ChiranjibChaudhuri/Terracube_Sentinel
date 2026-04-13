@@ -148,10 +148,10 @@ export const mockAircraft: Aircraft[] = [
 // ── Vessels ──────────────────────────────────────────────────────────
 
 export const mockVessels: Vessel[] = [
-  { id: 'vs-001', mmsi: '211331640', name: 'ATLANTIC GUARDIAN', imo: '9434765', shipType: 'CARGO', speed: 12.4, course: 270, destination: 'ROTTERDAM', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-5.3, 36.1] } },
-  { id: 'vs-002', mmsi: '244630590', name: 'PACIFIC TRADER', imo: '9567123', shipType: 'TANKER', speed: 8.2, course: 45, destination: 'SINGAPORE', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [103.8, 1.3] } },
-  { id: 'vs-003', mmsi: '366998310', name: 'COASTAL RUNNER', imo: '9012345', shipType: 'PASSENGER', speed: 15.1, course: 180, destination: 'MIAMI', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-74.0, 40.7] } },
-  { id: 'vs-004', mmsi: '538005890', name: 'NORTHERN STAR', imo: '9876543', shipType: 'FISHING', speed: 5.0, course: 90, destination: 'BERGEN', source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [5.3, 60.4] } },
+  { id: 'vs-001', mmsi: '211331640', name: 'ATLANTIC GUARDIAN', imo: '9434765', shipType: 'CARGO', speed: 12.4, course: 270, heading: 270, destination: 'ROTTERDAM', flag: null, navStatus: null, isFishing: false, source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-5.3, 36.1] } },
+  { id: 'vs-002', mmsi: '244630590', name: 'PACIFIC TRADER', imo: '9567123', shipType: 'TANKER', speed: 8.2, course: 45, heading: 45, destination: 'SINGAPORE', flag: null, navStatus: null, isFishing: false, source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [103.8, 1.3] } },
+  { id: 'vs-003', mmsi: '366998310', name: 'COASTAL RUNNER', imo: '9012345', shipType: 'PASSENGER', speed: 15.1, course: 180, heading: 180, destination: 'MIAMI', flag: null, navStatus: null, isFishing: false, source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [-74.0, 40.7] } },
+  { id: 'vs-004', mmsi: '538005890', name: 'NORTHERN STAR', imo: '9876543', shipType: 'FISHING', speed: 5.0, course: 90, heading: 90, destination: 'BERGEN', flag: null, navStatus: null, isFishing: true, source: 'ais', timestamp: '2026-04-08T12:00:00Z', geometry: { type: 'Point', coordinates: [5.3, 60.4] } },
 ]
 
 // ── Financial Indicators ────────────────────────────────────────────
