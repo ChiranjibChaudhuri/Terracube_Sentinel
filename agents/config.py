@@ -41,5 +41,6 @@ class FoundryConfig:
         )
     )
     token: str = field(
-        default_factory=lambda: os.environ.get("FOUNDRY_TOKEN", "")
+        default_factory=lambda: os.environ.get("FOUNDRY_TOKEN")
+        or os.environ.get("FOUNDRY_API_TOKEN", "")
     )

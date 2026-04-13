@@ -1,19 +1,17 @@
-version: "3.8"
-
 services:
   # ── PostgreSQL for Dagster run/event storage ─────────────────────────
   dagster-postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: dagster
-      POSTGRES_PASSWORD: dagster
-      POSTGRES_DB: dagster
+      POSTGRES_USER: "${DAGSTER_POSTGRES_USER:-dagster}"
+      POSTGRES_PASSWORD: "${DAGSTER_POSTGRES_PASSWORD:-dagster}"
+      POSTGRES_DB: "${DAGSTER_POSTGRES_DB:-dagster}"
     ports:
-      - "5433:5432"
+      - "${DAGSTER_POSTGRES_PORT:-5433}:5432"
     volumes:
       - dagster-pg-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dagster"]
+      test: ["CMD-SHELL", "pg_isready -U ${DAGSTER_POSTGRES_USER:-dagster} -d ${DAGSTER_POSTGRES_DB:-dagster}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -33,16 +31,56 @@ services:
     environment:
       DAGSTER_POSTGRES_HOST: dagster-postgres
       DAGSTER_POSTGRES_PORT: "5432"
-      DAGSTER_POSTGRES_USER: dagster
-      DAGSTER_POSTGRES_PASSWORD: dagster
-      DAGSTER_POSTGRES_DB: dagster
+      DAGSTER_POSTGRES_USER: "${DAGSTER_POSTGRES_USER:-dagster}"
+      DAGSTER_POSTGRES_PASSWORD: "${DAGSTER_POSTGRES_PASSWORD:-dagster}"
+      DAGSTER_POSTGRES_DB: "${DAGSTER_POSTGRES_DB:-dagster}"
       FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
+      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:8080/graphql}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
+      FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-terracube-satellite}"
+      AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
+      CDS_API_URL: "${CDS_API_URL:-https://cds.climate.copernicus.eu/api}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+      FIRMS_API_KEY: "${FIRMS_API_KEY:-DEMO_KEY}"
+      WAQI_API_TOKEN: "${WAQI_API_TOKEN:-}"
+      AIS_SOURCES: "${AIS_SOURCES:-aishub,aisstream,gfw}"
+      AIS_API_URL: "${AIS_API_URL:-https://data.aishub.net/ws.php}"
+      AIS_API_KEY: "${AIS_API_KEY:-}"
+      AISSTREAM_API_KEY: "${AISSTREAM_API_KEY:-}"
+      AISSTREAM_WS_URL: "${AISSTREAM_WS_URL:-wss://stream.aisstream.io/v0/stream}"
+      AISSTREAM_SNAPSHOT_SECONDS: "${AISSTREAM_SNAPSHOT_SECONDS:-30}"
+      AISSTREAM_MAX_MESSAGES: "${AISSTREAM_MAX_MESSAGES:-5000}"
+      AISSTREAM_BBOX: "${AISSTREAM_BBOX:-}"
+      AISSTREAM_BBOX_FORMAT: "${AISSTREAM_BBOX_FORMAT:-corners}"
+      GFW_API_TOKEN: "${GFW_API_TOKEN:-}"
+      GFW_API_URL: "${GFW_API_URL:-https://gateway.api.globalfishingwatch.org/v3/4wings/report}"
+      GFW_DATASET: "${GFW_DATASET:-public-global-presence:latest}"
+      GFW_BBOX: "${GFW_BBOX:-}"
+      GFW_LOOKBACK_HOURS: "${GFW_LOOKBACK_HOURS:-24}"
+      GFW_MAX_RECORDS: "${GFW_MAX_RECORDS:-1000}"
+      REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
+      MAX_CLOUD_COVER: "${MAX_CLOUD_COVER:-20}"
+      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-6}"
+      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-50}"
+      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-10}"
+      SATELLITE_MAX_ASSETS_PER_SCENE: "${SATELLITE_MAX_ASSETS_PER_SCENE:-5}"
+      SATELLITE_ASSET_STORAGE_MODE: "${SATELLITE_ASSET_STORAGE_MODE:-reference}"
+      SATELLITE_ASSET_KEYS: "${SATELLITE_ASSET_KEYS:-visual,red,green,blue,nir,nir08,swir16,swir22,scl,B04_10m,B08_10m,TCI_10m}"
+      OVERPASS_URL: "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}"
+      OSM_BBOX: "${OSM_BBOX:--33.9,18.4,-33.7,18.7}"
+      LLM_BACKEND: "${LLM_BACKEND:-openai}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.z.ai/api/coding/paas/v4}"
+      LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
+      ZAI_API_KEY: "${ZAI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      AI_ENABLE_LLM_CLASSIFICATION: "${AI_ENABLE_LLM_CLASSIFICATION:-true}"
+      AI_ENABLE_ANOMALY_DETECTION: "${AI_ENABLE_ANOMALY_DETECTION:-true}"
+      AI_ENABLE_AUTO_MAPPING: "${AI_ENABLE_AUTO_MAPPING:-true}"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:
@@ -58,16 +96,56 @@ services:
     environment:
       DAGSTER_POSTGRES_HOST: dagster-postgres
       DAGSTER_POSTGRES_PORT: "5432"
-      DAGSTER_POSTGRES_USER: dagster
-      DAGSTER_POSTGRES_PASSWORD: dagster
-      DAGSTER_POSTGRES_DB: dagster
+      DAGSTER_POSTGRES_USER: "${DAGSTER_POSTGRES_USER:-dagster}"
+      DAGSTER_POSTGRES_PASSWORD: "${DAGSTER_POSTGRES_PASSWORD:-dagster}"
+      DAGSTER_POSTGRES_DB: "${DAGSTER_POSTGRES_DB:-dagster}"
       FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
+      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:8080/graphql}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
+      FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
       MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
       MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-terracube-satellite}"
+      AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
+      CDS_API_URL: "${CDS_API_URL:-https://cds.climate.copernicus.eu/api}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
       NASA_FIRMS_MAP_KEY: "${NASA_FIRMS_MAP_KEY:-}"
+      FIRMS_API_KEY: "${FIRMS_API_KEY:-DEMO_KEY}"
+      WAQI_API_TOKEN: "${WAQI_API_TOKEN:-}"
+      AIS_SOURCES: "${AIS_SOURCES:-aishub,aisstream,gfw}"
+      AIS_API_URL: "${AIS_API_URL:-https://data.aishub.net/ws.php}"
+      AIS_API_KEY: "${AIS_API_KEY:-}"
+      AISSTREAM_API_KEY: "${AISSTREAM_API_KEY:-}"
+      AISSTREAM_WS_URL: "${AISSTREAM_WS_URL:-wss://stream.aisstream.io/v0/stream}"
+      AISSTREAM_SNAPSHOT_SECONDS: "${AISSTREAM_SNAPSHOT_SECONDS:-30}"
+      AISSTREAM_MAX_MESSAGES: "${AISSTREAM_MAX_MESSAGES:-5000}"
+      AISSTREAM_BBOX: "${AISSTREAM_BBOX:-}"
+      AISSTREAM_BBOX_FORMAT: "${AISSTREAM_BBOX_FORMAT:-corners}"
+      GFW_API_TOKEN: "${GFW_API_TOKEN:-}"
+      GFW_API_URL: "${GFW_API_URL:-https://gateway.api.globalfishingwatch.org/v3/4wings/report}"
+      GFW_DATASET: "${GFW_DATASET:-public-global-presence:latest}"
+      GFW_BBOX: "${GFW_BBOX:-}"
+      GFW_LOOKBACK_HOURS: "${GFW_LOOKBACK_HOURS:-24}"
+      GFW_MAX_RECORDS: "${GFW_MAX_RECORDS:-1000}"
+      REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
+      MAX_CLOUD_COVER: "${MAX_CLOUD_COVER:-20}"
+      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-6}"
+      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-50}"
+      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-10}"
+      SATELLITE_MAX_ASSETS_PER_SCENE: "${SATELLITE_MAX_ASSETS_PER_SCENE:-5}"
+      SATELLITE_ASSET_STORAGE_MODE: "${SATELLITE_ASSET_STORAGE_MODE:-reference}"
+      SATELLITE_ASSET_KEYS: "${SATELLITE_ASSET_KEYS:-visual,red,green,blue,nir,nir08,swir16,swir22,scl,B04_10m,B08_10m,TCI_10m}"
+      OVERPASS_URL: "${OVERPASS_URL:-https://overpass-api.de/api/interpreter}"
+      OSM_BBOX: "${OSM_BBOX:--33.9,18.4,-33.7,18.7}"
+      LLM_BACKEND: "${LLM_BACKEND:-openai}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.z.ai/api/coding/paas/v4}"
+      LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
+      ZAI_API_KEY: "${ZAI_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      AI_ENABLE_LLM_CLASSIFICATION: "${AI_ENABLE_LLM_CLASSIFICATION:-true}"
+      AI_ENABLE_ANOMALY_DETECTION: "${AI_ENABLE_ANOMALY_DETECTION:-true}"
+      AI_ENABLE_AUTO_MAPPING: "${AI_ENABLE_AUTO_MAPPING:-true}"
     volumes:
       - ./dagster:/opt/dagster/app
     depends_on:

@@ -16,7 +16,7 @@ from gse.threat_levels import ThreatLevel, get_threat_level, get_threat_descript
 logger = logging.getLogger(__name__)
 
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
-FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN", "")
+FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
 
 
 @dataclass
