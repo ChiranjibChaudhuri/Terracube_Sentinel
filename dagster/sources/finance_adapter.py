@@ -4,7 +4,6 @@ Fetches stock indices, commodities, and crypto from Yahoo Finance API.
 """
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 
 logger = logging.getLogger(__name__)

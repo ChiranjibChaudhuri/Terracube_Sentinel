@@ -4,7 +4,6 @@ Parses TLE data and propagates orbits for satellite pass tracking.
 """
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 import math
 from datetime import datetime, timezone

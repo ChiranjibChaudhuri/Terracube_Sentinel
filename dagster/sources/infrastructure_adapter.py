@@ -4,7 +4,6 @@ Fetches ports, airports, and enhanced power grid data.
 """
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 import csv
 import io

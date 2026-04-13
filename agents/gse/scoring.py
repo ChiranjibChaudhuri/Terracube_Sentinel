@@ -5,12 +5,10 @@ Per-region composite GSE scoring with history and trend analysis.
 import os
 import logging
 from datetime import datetime, timezone
-from dataclasses import dataclass
 
 import httpx
 
 from .engine import GlobalStabilityEngine, GSEEvent, GSEResult
-from .threat_levels import ThreatLevel, get_threat_level
 from .patterns import PatternDetector, PatternMatch
 
 logger = logging.getLogger(__name__)

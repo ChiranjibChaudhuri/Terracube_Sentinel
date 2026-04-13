@@ -8,6 +8,7 @@ Data flow: cache-first (Redis/Valkey), Foundry API as fallback.
 import json
 import os
 import logging
+from itertools import islice
 from typing import Any
 
 import httpx
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
 FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_SCAN_COUNT = 250
 
 ALL_ENTITY_TYPES = [
     "HazardEvent", "Aircraft", "Vessel", "SatellitePass",
@@ -31,23 +33,19 @@ def _foundry_headers() -> dict[str, str]:
 
 def _read_cache(entity_types, limit=500):
     """Read cached entities directly from Redis/Valkey."""
+    if limit <= 0:
+        return []
+
+    client = None
     try:
         import redis
         client = redis.from_url(REDIS_URL, decode_responses=True)
         features = []
         for entity_type in entity_types:
             pattern = f"fusion:{entity_type}:*"
-            cursor = 0
-            keys = []
-            iterations = 0
-            while iterations < 100:
-                cursor, batch = client.scan(cursor, match=pattern, count=100)
-                keys.extend(batch)
-                iterations += 1
-                if cursor == 0:
-                    break
+            keys = list(islice(client.scan_iter(match=pattern, count=CACHE_SCAN_COUNT), limit))
             if keys:
-                values = client.mget(keys[:limit])
+                values = client.mget(keys)
                 for v in values:
                     if v:
                         try:
@@ -61,11 +59,13 @@ def _read_cache(entity_types, limit=500):
                             })
                         except (json.JSONDecodeError, TypeError):
                             pass
-        client.close()
         return features
     except Exception as e:
         logger.warning("Cache read failed: %s", e)
         return []
+    finally:
+        if client is not None:
+            client.close()
 
 
 async def get_situational_awareness(

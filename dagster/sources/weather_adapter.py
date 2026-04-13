@@ -4,7 +4,6 @@ Combines NWS alerts, tropical cyclone tracking, and severe weather data.
 """
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 
 logger = logging.getLogger(__name__)

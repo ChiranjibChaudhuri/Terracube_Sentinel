@@ -4,7 +4,6 @@ Briefing output formatters — Markdown, HTML, and PDF.
 
 import html as html_mod
 import logging
-from datetime import datetime
 
 from .generator import Briefing
 

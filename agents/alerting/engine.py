@@ -4,8 +4,7 @@ Alert engine — runs continuously, evaluates rules, deduplicates, delivers.
 
 import asyncio
 import logging
-from datetime import datetime, timezone, timedelta
-from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from gse.scoring import GSEScorer
 from .rules import AlertRuleEngine, AlertNotification

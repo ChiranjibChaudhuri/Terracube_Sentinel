@@ -5,7 +5,6 @@ Fetches aircraft state vectors: lat, lng, altitude, heading, velocity, callsign,
 
 from dataclasses import dataclass
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 
 logger = logging.getLogger(__name__)

@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .llm_client import LLMClient
-from .config import LLMSettings
 
 logger = logging.getLogger(__name__)
 

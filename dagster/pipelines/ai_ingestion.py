@@ -28,7 +28,7 @@ from ai_ingest.entity_extractor import extract_entities, extract_from_gdelt
 from ai_ingest.quality_scorer import score_data_quality, detect_duplicates
 from ai_ingest.anomaly_detector import detect_anomalies, detect_schema_drift
 from ai_ingest.auto_mapper import map_to_ontology
-from ai_ingest.summarizer import generate_ingest_report, summarize_events
+from ai_ingest.summarizer import generate_ingest_report
 from ai_ingest.event_classifier import ODL_OBJECT_TYPES
 
 logger = logging.getLogger(__name__)

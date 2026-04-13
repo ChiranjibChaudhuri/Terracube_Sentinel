@@ -5,10 +5,8 @@ Produces structured intelligence briefings from GSE data, events, and patterns.
 
 import os
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
-
-import httpx
 
 from gse.scoring import GSEScorer
 from gse.threat_levels import ThreatLevel, get_threat_level, get_threat_description

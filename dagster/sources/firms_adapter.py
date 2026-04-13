@@ -5,9 +5,7 @@ Adds confidence scoring, fire radiative power tracking, historical comparison.
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
 import os
-import httpx
 import logging
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 

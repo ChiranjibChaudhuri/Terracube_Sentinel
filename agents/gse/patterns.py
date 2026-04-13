@@ -4,13 +4,11 @@ Identifies cross-domain operations, geographic clustering, temporal acceleration
 domain spillover, and network correlations.
 """
 
-import math
 import logging
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
-from collections import Counter
 
-from .engine import GSEEvent, CATEGORY_WEIGHTS
+from .engine import GSEEvent
 
 logger = logging.getLogger(__name__)
 

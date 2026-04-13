@@ -4,7 +4,6 @@ World Bank API, ACLED armed conflict, UNHCR displacement data.
 """
 
 from .base_adapter import BaseAdapter, GeoJSONFeature
-import httpx
 import logging
 
 logger = logging.getLogger(__name__)
