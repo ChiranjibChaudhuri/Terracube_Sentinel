@@ -261,6 +261,16 @@ export interface SatellitePass {
   processingLevel: ProcessingLevel
   cloudCover: number | null
   stacItemUrl: string | null
+  geometry?: GeoJSON | null
+  name?: string | null
+  noradId?: string | null
+  inclination?: number | null
+  period?: number | null
+  meanMotion?: number | null
+  eccentricity?: number | null
+  epoch?: string | null
+  source?: string | null
+  timestamp?: string | null
 }
 
 export interface DataProduct {

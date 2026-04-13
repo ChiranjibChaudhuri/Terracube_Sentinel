@@ -29,9 +29,14 @@ export interface AwarenessData {
   refetch: () => void
 }
 
+export interface UseAwarenessDataOptions {
+  hoursAgo?: number
+}
+
 const REFRESH_INTERVAL_MS = 30_000
 
-export function useAwarenessData(): AwarenessData {
+export function useAwarenessData(options: UseAwarenessDataOptions = {}): AwarenessData {
+  const { hoursAgo } = options
   const [hazards, setHazards] = useState<HazardEvent[]>([])
   const [aircraft, setAircraft] = useState<Aircraft[]>([])
   const [vessels, setVessels] = useState<Vessel[]>([])
@@ -46,10 +51,11 @@ export function useAwarenessData(): AwarenessData {
 
   const fetchData = useCallback(async () => {
     const controller = new AbortController()
+    const awarenessParams = hoursAgo && hoursAgo > 0 ? { hours_ago: hoursAgo } : undefined
 
     // Fetch awareness data
     try {
-      const awareness = await getFusionAwareness(undefined, controller.signal)
+      const awareness = await getFusionAwareness(awarenessParams, controller.signal)
       const featureCount = awareness.metadata?.totalFeatures ?? awareness.features?.length ?? 0
       setAwarenessFeatureCount(featureCount)
 
@@ -95,7 +101,7 @@ export function useAwarenessData(): AwarenessData {
 
     setIsLoading(false)
     setLastUpdated(new Date())
-  }, [])
+  }, [hoursAgo])
 
   useEffect(() => {
     window.setTimeout(() => { void fetchData() }, 0)

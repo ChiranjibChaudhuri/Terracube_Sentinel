@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import cesium from 'vite-plugin-cesium'
 
 const foundryApiTarget = process.env.VITE_FOUNDRY_API_PROXY_TARGET ?? 'http://localhost:4000'
 const foundryGraphqlTarget = process.env.VITE_FOUNDRY_GRAPHQL_PROXY_TARGET ?? foundryApiTarget
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), cesium({ cesiumBaseUrl: 'cesium' })],
   build: {
     rollupOptions: {
       output: {
@@ -19,6 +20,9 @@ export default defineConfig({
           }
           if (id.includes('node_modules/recharts')) {
             return 'chart-vendor'
+          }
+          if (id.includes('node_modules/cesium') || id.includes('node_modules/@cesium') || id.includes('node_modules/resium')) {
+            return 'cesium-vendor'
           }
           if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
             return 'map-vendor'

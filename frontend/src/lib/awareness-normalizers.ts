@@ -136,12 +136,29 @@ export function normalizeSatellitePasses(features: AwarenessFeature[]): Satellit
     .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'satellitepass')
     .map((feature, index) => {
       const properties = asRecord(feature.properties)
+      const geometry = asPointGeometry(feature.geometry)
+      const noradId = properties.noradId ?? properties.noradID ?? properties.norad_id ?? properties.NORAD_CAT_ID
+      const name = properties.name ?? properties.satelliteName ?? properties.OBJECT_NAME
+      const timestamp = asString(
+        properties.timestamp ?? properties.acquisitionTime,
+        REFERENCE_NOW.toISOString(),
+      )
       return {
         id: asString(properties.id, `satellite-pass-${index}`),
-        acquisitionTime: asString(properties.acquisitionTime ?? properties.timestamp, REFERENCE_NOW.toISOString()),
+        acquisitionTime: asString(properties.acquisitionTime ?? properties.timestamp, timestamp),
         processingLevel: normalizeProcessingLevel(properties.processingLevel),
         cloudCover: asNumber(properties.cloudCover),
         stacItemUrl: asNullableString(properties.stacItemUrl),
+        geometry,
+        name: asNullableString(name),
+        noradId: noradId === null || noradId === undefined || noradId === '' ? null : String(noradId),
+        inclination: asNumber(properties.inclination ?? properties.INCLINATION),
+        period: asNumber(properties.period ?? properties.PERIOD),
+        meanMotion: asNumber(properties.meanMotion ?? properties.MEAN_MOTION),
+        eccentricity: asNumber(properties.eccentricity ?? properties.ECCENTRICITY),
+        epoch: asNullableString(properties.epoch ?? properties.EPOCH),
+        source: asNullableString(properties.source),
+        timestamp,
       }
     })
 }

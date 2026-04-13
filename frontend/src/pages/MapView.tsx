@@ -1,16 +1,17 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from 'react-leaflet'
 import { Icon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Map as MapIcon, Globe } from 'lucide-react'
 import type { GeoJSONPoint } from '../lib/types'
-import type { GseRegionSummaryResponse } from '../lib/api'
 import { useAwarenessData } from '../hooks/useAwarenessData'
 import { DataSourceBadge } from '../components/DataSourceBadge'
 import { formatRegionName } from '../lib/awareness-normalizers'
 import LayerPanel, { type LayerConfig } from '../components/LayerPanel'
 import TimelineControls from '../components/TimelineControls'
 import EntityDetail from '../components/EntityDetail'
+
+const CesiumGlobe = lazy(() => import('../components/CesiumGlobe'))
 
 const SEVERITY_COLORS: Record<string, string> = {
   RED: '#ef4444', ORANGE: '#f97316', YELLOW: '#eab308', GREEN: '#22c55e',
@@ -40,153 +41,12 @@ const vesselIcon = new Icon({
   iconSize: [20, 20], iconAnchor: [10, 10],
 })
 
-interface GlobeCanvasProps {
-  gseRegions: GseRegionSummaryResponse[]
-}
-
-function GlobeCanvas({ gseRegions }: GlobeCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const rotRef = useRef(0)
-  const dragging = useRef(false)
-  const lastX = useRef(0)
-  const regionsRef = useRef(gseRegions)
-
-  // Keep the ref in sync so the animation loop always uses latest data
-  useEffect(() => {
-    regionsRef.current = gseRegions
-  }, [gseRegions])
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const w = canvas.width
-    const h = canvas.height
-    const cx = w / 2
-    const cy = h / 2
-    const r = Math.min(cx, cy) * 0.85
-
-    let animId: number | undefined
-
-    const draw = () => {
-      ctx.clearRect(0, 0, w, h)
-
-      // Atmospheric glow
-      const glow = ctx.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 1.15)
-      glow.addColorStop(0, 'rgba(56, 189, 248, 0.15)')
-      glow.addColorStop(1, 'rgba(56, 189, 248, 0)')
-      ctx.fillStyle = glow
-      ctx.fillRect(0, 0, w, h)
-
-      // Globe body
-      const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r)
-      grad.addColorStop(0, '#1e3a5f')
-      grad.addColorStop(0.7, '#0f172a')
-      grad.addColorStop(1, '#020617')
-      ctx.beginPath()
-      ctx.arc(cx, cy, r, 0, Math.PI * 2)
-      ctx.fillStyle = grad
-      ctx.fill()
-
-      // Grid lines (longitude)
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)'
-      ctx.lineWidth = 0.5
-      for (let lon = 0; lon < 360; lon += 30) {
-        const rad = ((lon + rotRef.current) * Math.PI) / 180
-        ctx.beginPath()
-        for (let lat = -90; lat <= 90; lat += 2) {
-          const latRad = (lat * Math.PI) / 180
-          const x = cx + r * Math.cos(latRad) * Math.sin(rad)
-          const y = cy - r * Math.sin(latRad)
-          const z = Math.cos(latRad) * Math.cos(rad)
-          if (z < 0) continue
-          if (lat === -90) ctx.moveTo(x, y)
-          else ctx.lineTo(x, y)
-        }
-        ctx.stroke()
-      }
-
-      // Grid lines (latitude)
-      for (let lat = -60; lat <= 60; lat += 30) {
-        const latRad = (lat * Math.PI) / 180
-        ctx.beginPath()
-        let started = false
-        for (let lon = 0; lon <= 360; lon += 2) {
-          const rad = ((lon + rotRef.current) * Math.PI) / 180
-          const x = cx + r * Math.cos(latRad) * Math.sin(rad)
-          const y = cy - r * Math.sin(latRad)
-          const z = Math.cos(latRad) * Math.cos(rad)
-          if (z < 0) { started = false; continue }
-          if (!started) { ctx.moveTo(x, y); started = true }
-          else ctx.lineTo(x, y)
-        }
-        ctx.stroke()
-      }
-
-      // Plot GSE regions from live data
-      regionsRef.current.forEach((region) => {
-        const coords: Record<string, [number, number]> = {
-          'middle-east': [43, 30], 'south-asia': [78, 22], 'europe': [15, 50],
-          'east-asia': [120, 38], 'north-america': [-95, 40], 'africa': [20, 5],
-          'south-america': [-60, -15], 'oceania': [140, -25],
-        }
-        const [lon, lat] = coords[region.regionId] ?? [0, 0]
-        const latRad = (lat * Math.PI) / 180
-        const lonRad = ((lon + rotRef.current) * Math.PI) / 180
-        const x = cx + r * Math.cos(latRad) * Math.sin(lonRad)
-        const y = cy - r * Math.sin(latRad)
-        const z = Math.cos(latRad) * Math.cos(lonRad)
-        if (z < 0) return
-
-        const color = THREAT_COLORS[region.threatLevel] ?? '#6b7280'
-        const pulseR = 4 + (region.gseScore / 200) * 16
-
-        // Pulse
-        ctx.beginPath()
-        ctx.arc(x, y, pulseR * 1.5, 0, Math.PI * 2)
-        ctx.fillStyle = color.replace(')', ', 0.15)').replace('rgb', 'rgba')
-        ctx.fill()
-
-        // Dot
-        ctx.beginPath()
-        ctx.arc(x, y, pulseR * 0.5, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
-
-        // Label
-        ctx.font = '10px Inter, sans-serif'
-        ctx.fillStyle = '#e2e8f0'
-        ctx.fillText(formatRegionName(region.regionId), x + pulseR * 0.6 + 4, y + 3)
-      })
-
-      rotRef.current += 0.15
-      animId = requestAnimationFrame(draw)
-    }
-
-    draw()
-    return () => {
-      if (animId !== undefined) cancelAnimationFrame(animId)
-    }
-  }, [])
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={800}
-      height={600}
-      className="w-full h-full"
-      onMouseDown={(e) => { dragging.current = true; lastX.current = e.clientX }}
-      onMouseMove={(e) => { if (dragging.current) { rotRef.current += (e.clientX - lastX.current) * 0.5; lastX.current = e.clientX } }}
-      onMouseUp={() => { dragging.current = false }}
-      onMouseLeave={() => { dragging.current = false }}
-    />
-  )
-}
-
 export default function MapView() {
-  const { hazards, aircraft, vessels, gseRegions, dataSource, isLoading } = useAwarenessData()
+  const [timelineHoursAgo, setTimelineHoursAgo] = useState(0)
+  const [timelineTime, setTimelineTime] = useState(() => new Date())
+  const [timelinePlaying, setTimelinePlaying] = useState(false)
+  const [timelineSpeed, setTimelineSpeed] = useState(60)
+  const { hazards, aircraft, vessels, satellites, gseRegions, dataSource, isLoading } = useAwarenessData({ hoursAgo: timelineHoursAgo })
 
   const [mode, setMode] = useState<'2d' | '3d'>('2d')
   const [selectedEntity, setSelectedEntity] = useState<Record<string, unknown> | null>(null)
@@ -194,6 +54,7 @@ export default function MapView() {
     hazards: true,
     aircraft: true,
     vessels: true,
+    satellites: true,
     gse: true,
   })
 
@@ -201,14 +62,37 @@ export default function MapView() {
     { id: 'hazards', label: 'Hazard Events', color: '#ef4444', visible: layerVisibility.hazards, count: hazards.length },
     { id: 'aircraft', label: 'Aircraft', color: '#38bdf8', visible: layerVisibility.aircraft, count: aircraft.length },
     { id: 'vessels', label: 'Vessels', color: '#3b82f6', visible: layerVisibility.vessels, count: vessels.length },
+    { id: 'satellites', label: 'Satellites', color: '#4ade80', visible: layerVisibility.satellites, count: satellites.length },
     { id: 'gse', label: 'GSE Threat Zones', color: '#f97316', visible: layerVisibility.gse, count: gseRegions.length },
-  ], [aircraft.length, gseRegions.length, hazards.length, layerVisibility, vessels.length])
+  ], [aircraft.length, gseRegions.length, hazards.length, layerVisibility, satellites.length, vessels.length])
 
   const toggleLayer = useCallback((id: string) => {
     setLayerVisibility((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
   }, [])
 
   const isVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
+
+  const handleTimelineChange = useCallback((hoursAgo: number) => {
+    setTimelineHoursAgo(hoursAgo)
+    setTimelineTime(new Date(Date.now() - hoursAgo * 60 * 60 * 1000))
+  }, [])
+
+  const handleTimelinePlayingChange = useCallback((playing: boolean) => {
+    setTimelinePlaying(playing)
+    if (playing && timelineHoursAgo === 0) {
+      setTimelineTime(new Date())
+    }
+  }, [timelineHoursAgo])
+
+  const handleCesiumTimeChange = useCallback((time: Date) => {
+    if (!timelinePlaying) {
+      setTimelineTime(time)
+    }
+  }, [timelinePlaying])
+
+  const handleEntityClick = useCallback((entity: Record<string, unknown>) => {
+    setSelectedEntity(entity)
+  }, [])
 
   return (
     <div className="h-[calc(100vh-8rem)] relative rounded-lg overflow-hidden border border-slate-700/50">
@@ -240,7 +124,14 @@ export default function MapView() {
       <LayerPanel layers={layers} onToggle={toggleLayer} />
 
       {/* Timeline */}
-      <TimelineControls />
+      <TimelineControls
+        hoursAgo={timelineHoursAgo}
+        playing={timelinePlaying}
+        speed={timelineSpeed}
+        onTimeChange={handleTimelineChange}
+        onPlayingChange={handleTimelinePlayingChange}
+        onSpeedChange={setTimelineSpeed}
+      />
 
       {/* Loading overlay */}
       {isLoading && (
@@ -340,9 +231,27 @@ export default function MapView() {
           })}
         </MapContainer>
       ) : (
-        <div className="h-full w-full bg-[#020617] flex items-center justify-center">
-          <GlobeCanvas gseRegions={gseRegions} />
-        </div>
+        <Suspense
+          fallback={(
+            <div className="flex h-full w-full items-center justify-center bg-[#020617] text-sm text-slate-400">
+              Loading 3D globe...
+            </div>
+          )}
+        >
+          <CesiumGlobe
+            aircraft={aircraft}
+            vessels={vessels}
+            satellites={satellites}
+            hazards={hazards}
+            gseRegions={gseRegions}
+            layerVisibility={layerVisibility}
+            currentTime={timelineTime}
+            isPlaying={timelinePlaying}
+            speed={timelineSpeed}
+            onEntityClick={handleEntityClick}
+            onTimeChange={handleCesiumTimeChange}
+          />
+        </Suspense>
       )}
     </div>
   )

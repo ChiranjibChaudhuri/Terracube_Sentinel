@@ -1,3 +1,4 @@
+@import "cesium/Build/Cesium/Widgets/widgets.css";
 @import "tailwindcss";
 
 /* ─── Design tokens ─────────────────────────────────────────────────────────── */
@@ -34,6 +35,56 @@ body {
     'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+/* ─── Cesium globe ─────────────────────────────────────────────────────────── */
+.cesium-globe-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.cesium-globe-shell .cesium-viewer,
+.cesium-globe-shell .cesium-viewer-cesiumWidgetContainer,
+.cesium-globe-shell .cesium-widget,
+.cesium-globe-shell .cesium-widget canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.cesium-globe-shell .cesium-viewer-bottom {
+  display: none !important;
+}
+
+.cesium-globe-shell .cesium-viewer-toolbar {
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.cesium-globe-shell .cesium-button,
+.cesium-globe-shell .cesium-toolbar-button {
+  background: rgba(30, 41, 59, 0.92);
+  border: 1px solid rgba(100, 116, 139, 0.7);
+  color: #e2e8f0;
+}
+
+.cesium-globe-shell .cesium-button:hover,
+.cesium-globe-shell .cesium-toolbar-button:hover {
+  background: rgba(8, 145, 178, 0.35);
+  color: #ffffff;
+}
+
+.cesium-globe-shell .cesium-viewer-timelineContainer {
+  bottom: 3.5rem;
+  background: rgba(15, 23, 42, 0.92);
+  border-top: 1px solid rgba(100, 116, 139, 0.55);
+}
+
+.cesium-globe-shell .cesium-timeline-main {
+  border-color: rgba(100, 116, 139, 0.7);
+}
+
+.cesium-globe-shell .cesium-timeline-bar {
+  background: rgba(30, 41, 59, 0.95);
 }
 
 /* ─── Utility classes ───────────────────────────────────────────────────────── */

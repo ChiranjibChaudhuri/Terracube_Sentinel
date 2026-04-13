@@ -264,6 +264,7 @@ export interface AwarenessQueryParams {
   max_lat?: number
   max_lng?: number
   entity_types?: string[]
+  hours_ago?: number
 }
 
 export interface PendingAlertResponse {
