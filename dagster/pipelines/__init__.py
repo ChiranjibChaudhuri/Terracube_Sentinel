@@ -15,6 +15,7 @@ from .satellite_ingestion import (
     satellite_ingestion_job,
     search_stac_catalogs,
     filter_scenes,
+    enrich_stac_items_with_llm,
     download_cog_assets,
     store_in_minio,
     register_data_products,
@@ -144,6 +145,7 @@ defs = Definitions(
         # satellite_ingestion
         search_stac_catalogs,
         filter_scenes,
+        enrich_stac_items_with_llm,
         download_cog_assets,
         store_in_minio,
         register_data_products,

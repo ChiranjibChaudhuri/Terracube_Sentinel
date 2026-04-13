@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
@@ -187,17 +187,12 @@ export default function CountryIntel() {
   })
 
   const countries = countriesQuery.data ?? []
-
-  useEffect(() => {
-    if (!selectedCountryCode && countries.length > 0) {
-      setSelectedCountryCode(countries[0].countryCode)
-    }
-  }, [countries, selectedCountryCode])
+  const effectiveCountryCode = selectedCountryCode || countries[0]?.countryCode || ''
 
   const countryQuery = useQuery({
-    queryKey: ['country-intel', selectedCountryCode],
-    queryFn: ({ signal }) => getCountry(selectedCountryCode, signal),
-    enabled: selectedCountryCode.length > 0,
+    queryKey: ['country-intel', effectiveCountryCode],
+    queryFn: ({ signal }) => getCountry(effectiveCountryCode, signal),
+    enabled: effectiveCountryCode.length > 0,
     refetchInterval: 60_000,
   })
 
@@ -208,7 +203,7 @@ export default function CountryIntel() {
       )
     : countries
 
-  const selectedCountry = countries.find((country) => country.countryCode === selectedCountryCode) ?? countries[0]
+  const selectedCountry = countries.find((country) => country.countryCode === effectiveCountryCode) ?? countries[0]
   const profile = countryQuery.data
   const trend = profile ? deriveTrend(profile) : 'stable'
   const TrendIcon = TREND_ICON[trend]
@@ -221,12 +216,12 @@ export default function CountryIntel() {
 
   const handleRetry = () => {
     void countriesQuery.refetch()
-    if (selectedCountryCode) {
+    if (effectiveCountryCode) {
       void countryQuery.refetch()
     }
   }
 
-  const isInitialLoading = countriesQuery.isLoading || (selectedCountryCode.length > 0 && countryQuery.isLoading && !profile)
+  const isInitialLoading = countriesQuery.isLoading || (effectiveCountryCode.length > 0 && countryQuery.isLoading && !profile)
 
   return (
     <motion.div
@@ -245,6 +240,8 @@ export default function CountryIntel() {
           <input
             type="text"
             placeholder="Search country..."
+            aria-label="Search countries"
+            role="searchbox"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="focus-ring w-60 rounded-lg py-2 pl-9 pr-4 text-sm text-white placeholder-[var(--text-muted)] focus:outline-none"
@@ -273,7 +270,7 @@ export default function CountryIntel() {
             </div>
             <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
               {filteredCountries.map((country) => {
-                const active = selectedCountryCode === country.countryCode
+                const active = effectiveCountryCode === country.countryCode
                 const tone = THREAT_STYLES[country.threatLevel] ?? THREAT_STYLES.STABLE
 
                 return (

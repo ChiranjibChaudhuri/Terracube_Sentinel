@@ -1,6 +1,6 @@
 import { formatDistanceStrict } from 'date-fns'
 import { motion } from 'framer-motion'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -16,21 +16,6 @@ import {
   Wind,
 } from 'lucide-react'
 import {
-  mockAlerts,
-  mockAircraft,
-  mockDataProducts,
-  mockDataSources,
-  mockGSERegions,
-  mockHazardEvents,
-  mockInfrastructure,
-  mockPipelineExecutions,
-  mockRegions,
-  mockRiskAssessments,
-  mockSatellitePasses,
-  mockSensors,
-  mockVessels,
-} from '../lib/mock-data'
-import {
   getAiStatus,
   getAlertsPending,
   getAlertsWebSocketUrl,
@@ -40,19 +25,32 @@ import {
   getPipelineExecutions,
   type AiStatusResponse,
   type AlertSocketMessage,
-  type AwarenessFeature,
   type GseRegionSummaryResponse,
   type HealthResponse,
   type PendingAlertResponse,
 } from '../lib/api'
+import { fetchObjects } from '../lib/api-client'
 import useWebSocket from '../hooks/useWebSocket'
+import { type DataSource } from '../hooks/useAwarenessData'
+import { DataSourceBadge } from '../components/DataSourceBadge'
+import {
+  normalizeHazards,
+  normalizeAircraftTracks,
+  normalizeVesselTracks,
+  normalizeSatellitePasses,
+  formatRegionName,
+} from '../lib/awareness-normalizers'
 import type {
   Aircraft,
+  DataProduct,
+  DataSource as DataSourceObject,
   GeoJSONPoint,
   HazardEvent,
+  InfrastructureAsset,
   PipelineExecution,
   RiskAssessment,
   SatellitePass,
+  Sensor,
   Vessel,
 } from '../lib/types'
 
@@ -60,10 +58,10 @@ const REFERENCE_NOW = new Date()
 const REFERENCE_NOW_MS = REFERENCE_NOW.getTime()
 
 const GLASS_PANEL =
-  'relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl shadow-[0_24px_80px_rgba(0,0,0,0.36)] transition-all duration-200 hover:scale-[1.01] hover:border-white/[0.12]'
+  'relative overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.025] transition-colors duration-150 hover:border-white/[0.12]'
 
 const SUB_PANEL =
-  'rounded-xl border border-white/[0.06] bg-black/20 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+  'rounded-lg border border-white/[0.06] bg-black/20'
 
 const KICKER_CLASS = 'text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-500'
 
@@ -246,24 +244,8 @@ function formatHazardLabel(value: string) {
 }
 
 function nearestRegionLabel(point: GeoJSONPoint) {
-  const nearest = mockRegions.reduce(
-    (best, region) => {
-      if (region.geometry.type !== 'Point') return best
-
-      const [regionLon, regionLat] = region.geometry.coordinates
-      const [lon, lat] = point.coordinates
-      const distance = Math.hypot(regionLon - lon, regionLat - lat)
-
-      if (distance < best.distance) {
-        return { distance, name: region.name }
-      }
-
-      return best
-    },
-    { distance: Number.POSITIVE_INFINITY, name: 'Open Ocean' },
-  )
-
-  return nearest.name
+  const [lon, lat] = point.coordinates
+  return `${lat.toFixed(2)}, ${lon.toFixed(2)}`
 }
 
 function impactedAssetEstimate(score: number) {
@@ -683,222 +665,14 @@ const FALLBACK_AI_PIPELINE: AiStatusResponse = {
   },
 }
 
-const FALLBACK_PENDING_ALERTS: PendingAlertResponse[] = mockAlerts.map((alert, index) => ({
-  alertId: alert.id,
-  rule: `${alert.severity.toLowerCase()}_watch`,
-  priority: alert.severity,
-  title: alert.message.split('. ')[0] ?? alert.message,
-  message: alert.message,
-  regionId: mockGSERegions[index % mockGSERegions.length]?.regionId ?? 'global',
-  timestamp: alert.issuedAt,
-}))
+const FALLBACK_PENDING_ALERTS: PendingAlertResponse[] = []
+const FALLBACK_GSE_REGIONS: GseRegionSummaryResponse[] = []
 
-const FALLBACK_GSE_REGIONS: GseRegionSummaryResponse[] = mockGSERegions.map((region) => ({
-  regionId: region.regionId,
-  gseScore: region.gseScore,
-  threatLevel: region.threatLevel,
-  eventCount: region.eventCount,
-  escalationAlert: region.trend === 'up' && region.gseScore >= 55,
-  contributingFactors: [
-    {
-      category: region.topCategory,
-      eventCount: region.eventCount,
-      pressure: Number(region.gseScore.toFixed(1)),
-      weight: 0.55,
-    },
-    {
-      category: 'cross_domain_signal',
-      eventCount: Math.max(1, Math.round(region.eventCount * 0.45)),
-      pressure: Number(Math.max(0, region.gseScore - 8).toFixed(1)),
-      weight: 0.3,
-    },
-    {
-      category: 'operator_watchlist',
-      eventCount: Math.max(1, Math.round(region.eventCount * 0.25)),
-      pressure: Number(Math.max(0, region.gseScore - 14).toFixed(1)),
-      weight: 0.15,
-    },
-  ],
-}))
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {}
-}
-
-function asString(value: unknown, fallback: string) {
-  return typeof value === 'string' && value.length > 0 ? value : fallback
-}
-
-function asNullableString(value: unknown) {
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function asNumber(value: unknown) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function normalizeEntityType(value: unknown) {
-  return String(value ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase()
-}
-
-function asPointGeometry(value: unknown): GeoJSONPoint | null {
-  const geometry = asRecord(value)
-  if (geometry.type !== 'Point' || !Array.isArray(geometry.coordinates)) {
-    return null
-  }
-
-  const [lng, lat] = geometry.coordinates
-  if (typeof lng !== 'number' || typeof lat !== 'number') {
-    return null
-  }
-
-  return {
-    type: 'Point',
-    coordinates: [lng, lat],
-  }
-}
-
-function formatRegionName(regionId: string) {
-  return regionId.replace(/-/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function normalizeSeverity(value: unknown): HazardEvent['severity'] {
-  switch (String(value ?? '').toUpperCase()) {
-    case 'LOW':
-    case 'MODERATE':
-    case 'HIGH':
-    case 'CRITICAL':
-      return String(value).toUpperCase() as HazardEvent['severity']
-    default:
-      return 'MODERATE'
-  }
-}
-
-function severityToAlertLevel(severity: HazardEvent['severity']): HazardEvent['alertLevel'] {
-  switch (severity) {
-    case 'CRITICAL':
-      return 'RED'
-    case 'HIGH':
-      return 'ORANGE'
-    case 'MODERATE':
-      return 'YELLOW'
-    default:
-      return 'GREEN'
-  }
-}
-
-function normalizeProcessingLevel(value: unknown): SatellitePass['processingLevel'] {
-  switch (String(value ?? '').toUpperCase()) {
-    case 'RAW':
-    case 'L1A':
-    case 'L1B':
-    case 'L2A':
-    case 'L2B':
-    case 'L3':
-      return String(value).toUpperCase() as SatellitePass['processingLevel']
-    default:
-      return 'L2A'
-  }
-}
-
-function normalizeHazards(features: AwarenessFeature[]): HazardEvent[] {
-  return features
-    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'hazardevent')
-    .map((feature, index) => {
-      const properties = asRecord(feature.properties)
-      const geometry = asPointGeometry(feature.geometry)
-      if (!geometry) return null
-
-      const severity = normalizeSeverity(properties.severity)
-      const confidenceValue = asNumber(properties.confidence)
-
-      return {
-        id: asString(properties.id, `hazard-${index}`),
-        type: asString(properties.type ?? properties.name, 'WILDFIRE').toUpperCase() as HazardEvent['type'],
-        severity,
-        geometry,
-        startTime: asString(properties.startTime ?? properties.timestamp, REFERENCE_NOW.toISOString()),
-        endTime: asNullableString(properties.endTime ?? properties.expiresAt),
-        confidence: confidenceValue === null
-          ? 0.85
-          : confidenceValue > 1
-            ? clamp(confidenceValue / 100, 0, 1)
-            : clamp(confidenceValue, 0, 1),
-        alertLevel: severityToAlertLevel(severity),
-      }
-    })
-    .filter((e): e is NonNullable<typeof e> => e !== null) as HazardEvent[]
-}
-
-function normalizeSatellitePasses(features: AwarenessFeature[]): SatellitePass[] {
-  return features
-    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'satellitepass')
-    .map((feature, index) => {
-      const properties = asRecord(feature.properties)
-
-      return {
-        id: asString(properties.id, `satellite-pass-${index}`),
-        acquisitionTime: asString(properties.acquisitionTime ?? properties.timestamp, REFERENCE_NOW.toISOString()),
-        processingLevel: normalizeProcessingLevel(properties.processingLevel),
-        cloudCover: asNumber(properties.cloudCover),
-        stacItemUrl: asNullableString(properties.stacItemUrl),
-      }
-    })
-}
-
-function normalizeAircraftTracks(features: AwarenessFeature[]): Aircraft[] {
-  return features
-    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'aircraft')
-    .map((feature, index) => {
-      const properties = asRecord(feature.properties)
-      const geometry = asPointGeometry(feature.geometry)
-      if (!geometry) return null
-
-      return {
-        id: asString(properties.id, `aircraft-${index}`),
-        icao24: asString(properties.icao24, `icao-${index}`),
-        callsign: asNullableString(properties.callsign),
-        altitude: asNumber(properties.altitude),
-        heading: asNumber(properties.heading),
-        velocity: asNumber(properties.velocity),
-        onGround: Boolean(properties.onGround),
-        source: asString(properties.source, 'awareness'),
-        timestamp: asString(properties.timestamp, REFERENCE_NOW.toISOString()),
-        geometry,
-      }
-    })
-    .filter(Boolean) as Aircraft[]
-}
-
-function normalizeVesselTracks(features: AwarenessFeature[]): Vessel[] {
-  return features
-    .filter((feature) => normalizeEntityType(feature.properties.entityType) === 'vessel')
-    .map((feature, index) => {
-      const properties = asRecord(feature.properties)
-      const geometry = asPointGeometry(feature.geometry)
-      if (!geometry) return null
-
-      return {
-        id: asString(properties.id, `vessel-${index}`),
-        mmsi: asString(properties.mmsi, `mmsi-${index}`),
-        name: asNullableString(properties.name),
-        imo: asNullableString(properties.imo),
-        shipType: asString(properties.shipType, 'OTHER').toUpperCase() as Vessel['shipType'],
-        speed: asNumber(properties.speed),
-        course: asNumber(properties.course),
-        destination: asNullableString(properties.destination),
-        source: asString(properties.source, 'awareness'),
-        timestamp: asString(properties.timestamp, REFERENCE_NOW.toISOString()),
-        geometry,
-      }
-    })
-    .filter(Boolean) as Vessel[]
-}
+// Normalizers imported from ../lib/awareness-normalizers
 
 function buildRiskAssessmentsFromHazards(hazards: HazardEvent[]): RiskAssessment[] {
   if (hazards.length === 0) {
-    return mockRiskAssessments
+    return []
   }
 
   const grouped = new Map<string, HazardEvent[]>()
@@ -923,6 +697,7 @@ function buildRiskAssessmentsFromHazards(hazards: HazardEvent[]): RiskAssessment
 }
 
 function normalizeDashboardRegions(regions: GseRegionSummaryResponse[]): DashboardRegion[] {
+  if (!Array.isArray(regions)) return []
   return regions.map((region) => {
     const topFactor = [...region.contributingFactors]
       .sort((left, right) => (right.weightedPressure ?? right.pressure * right.weight) - (left.weightedPressure ?? left.pressure * left.weight))[0]
@@ -959,7 +734,7 @@ function buildLiveFeed({
     .sort((left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime())
     .slice(0, 2)
 
-  return [
+  const items: FeedItem[] = [
     ...hazards.slice(0, 4).map((event) => ({
       id: event.id,
       kind: 'hazard' as const,
@@ -984,31 +759,40 @@ function buildLiveFeed({
       title: `${pipeline.pipelineName} ${pipeline.status.toLowerCase()}`,
       detail:
         pipeline.status === 'FAILED'
-          ? String(pipeline.nodeResults?.error ?? 'Recovery playbook running')
-          : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'autonomous execution in progress' : 'run closed cleanly'}`,
+          ? String(pipeline.nodeResults?.error ?? 'Run requires operator review')
+          : `${pipeline.triggeredBy} trigger | ${pipeline.status === 'RUNNING' ? 'execution in progress' : 'run closed'}`,
       timestamp: pipeline.startedAt,
       status: pipeline.status,
       live: pipeline.status === 'RUNNING',
     })),
-    {
+  ]
+
+  const latestSatellitePass = satellitePasses[0]
+  if (latestSatellitePass) {
+    items.push({
       id: 'orbital-pass',
       kind: 'orbital' as const,
-      title: 'Sentinel orbital pass ingested into hazard mesh',
-      detail: `${satellitePasses[0]?.processingLevel ?? 'L2A'} scene registered with ${satellitePasses[0]?.cloudCover ?? 'n/a'}% cloud cover`,
-      timestamp: satellitePasses[0]?.acquisitionTime ?? REFERENCE_NOW.toISOString(),
+      title: 'Sentinel orbital pass registered',
+      detail: `${latestSatellitePass.processingLevel} scene registered with ${latestSatellitePass.cloudCover ?? 'n/a'}% cloud cover`,
+      timestamp: latestSatellitePass.acquisitionTime,
       status: 'LIVE',
       live: true,
-    },
-    {
+    })
+  }
+
+  if (aircraftTracks.length > 0 || vesselTracks.length > 0) {
+    items.push({
       id: 'tracking-corridor',
       kind: 'tracking' as const,
-      title: 'Maritime and airborne corridors cross-correlated',
-      detail: `${aircraftTracks.length} aircraft and ${vesselTracks.length} vessels fused into movement graph`,
+      title: 'Maritime and airborne tracks correlated',
+      detail: `${aircraftTracks.length} aircraft and ${vesselTracks.length} vessels in the movement graph`,
       timestamp: aircraftTracks[0]?.timestamp ?? vesselTracks[0]?.timestamp ?? REFERENCE_NOW.toISOString(),
       status: 'MONITOR',
       live: true,
-    },
-  ]
+    })
+  }
+
+  return items
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
     .slice(0, 8)
 }
@@ -1018,45 +802,65 @@ export default function Dashboard() {
   const [aiPipeline, setAiPipeline] = useState<AiStatusResponse>(FALLBACK_AI_PIPELINE)
   const [gseRegions, setGseRegions] = useState<GseRegionSummaryResponse[]>(FALLBACK_GSE_REGIONS)
   const [alerts, setAlerts] = useState<PendingAlertResponse[]>(FALLBACK_PENDING_ALERTS)
-  const [hazards, setHazards] = useState<HazardEvent[]>(mockHazardEvents)
-  const [riskAssessments, setRiskAssessments] = useState<RiskAssessment[]>(mockRiskAssessments)
-  const [satellitePasses, setSatellitePasses] = useState<SatellitePass[]>(mockSatellitePasses)
-  const [aircraftTracks, setAircraftTracks] = useState<Aircraft[]>(mockAircraft)
-  const [vesselTracks, setVesselTracks] = useState<Vessel[]>(mockVessels)
-  const [pipelineRuns, setPipelineRuns] = useState<PipelineExecution[]>(mockPipelineExecutions)
-  const [feed, setFeed] = useState<FeedItem[]>(() =>
-    buildLiveFeed({
-      hazards: mockHazardEvents,
-      alerts: FALLBACK_PENDING_ALERTS,
-      pipelines: mockPipelineExecutions,
-      satellitePasses: mockSatellitePasses,
-      aircraftTracks: mockAircraft,
-      vesselTracks: mockVessels,
-    }),
-  )
-  const [awarenessFeatureCount, setAwarenessFeatureCount] = useState(
-    mockHazardEvents.length + mockSatellitePasses.length + mockAircraft.length + mockVessels.length,
-  )
+  const [hazards, setHazards] = useState<HazardEvent[]>([])
+  const [riskAssessments, setRiskAssessments] = useState<RiskAssessment[]>([])
+  const [satellitePasses, setSatellitePasses] = useState<SatellitePass[]>([])
+  const [aircraftTracks, setAircraftTracks] = useState<Aircraft[]>([])
+  const [vesselTracks, setVesselTracks] = useState<Vessel[]>([])
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineExecution[]>([])
+  const [sensors, setSensors] = useState<Sensor[]>([])
+  const [infrastructureAssets, setInfrastructureAssets] = useState<InfrastructureAsset[]>([])
+  const [dataProducts, setDataProducts] = useState<DataProduct[]>([])
+  const [catalogSources, setCatalogSources] = useState<DataSourceObject[]>([])
+  const [dataSources, setDataSources] = useState<Record<string, DataSource>>({
+    health: 'loading', ai: 'loading', gse: 'loading',
+    alerts: 'loading', awareness: 'loading', pipelines: 'loading',
+  })
+  const [awarenessFeatureCount, setAwarenessFeatureCount] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
 
-    void getHealth(controller.signal).then(setSystemHealth).catch(() => undefined)
-    void getAiStatus(controller.signal).then(setAiPipeline).catch(() => undefined)
+    void getHealth(controller.signal).then((h) => {
+      setSystemHealth(h)
+      setDataSources((prev) => ({ ...prev, health: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, health: 'unavailable' })))
+    void getAiStatus(controller.signal).then((ai) => {
+      setAiPipeline(ai)
+      setDataSources((prev) => ({ ...prev, ai: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, ai: 'unavailable' })))
     void getGseRegions(controller.signal).then((regions) => {
-      if (regions.length > 0) {
+      if (Array.isArray(regions) && regions.length > 0) {
         setGseRegions(regions)
       }
-    }).catch(() => undefined)
+      setDataSources((prev) => ({ ...prev, gse: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, gse: 'unavailable' })))
     void getAlertsPending(controller.signal).then((pendingAlerts) => {
-      if (pendingAlerts.length > 0) {
+      if (Array.isArray(pendingAlerts) && pendingAlerts.length > 0) {
         setAlerts(pendingAlerts)
       }
-    }).catch(() => undefined)
+      setDataSources((prev) => ({ ...prev, alerts: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, alerts: 'unavailable' })))
     void getPipelineExecutions(controller.signal).then((runs) => {
-      if (runs.length > 0) {
+      if (Array.isArray(runs) && runs.length > 0) {
         setPipelineRuns(runs)
       }
+      setDataSources((prev) => ({ ...prev, pipelines: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, pipelines: 'unavailable' })))
+    void fetchObjects<SatellitePass>('SatellitePass', { pageSize: 100 }, controller.signal).then((passes) => {
+      setSatellitePasses(passes)
+    }).catch(() => undefined)
+    void fetchObjects<Sensor>('Sensor', { pageSize: 1000 }, controller.signal).then((items) => {
+      setSensors(items)
+    }).catch(() => undefined)
+    void fetchObjects<InfrastructureAsset>('InfrastructureAsset', { pageSize: 1000 }, controller.signal).then((items) => {
+      setInfrastructureAssets(items)
+    }).catch(() => undefined)
+    void fetchObjects<DataProduct>('DataProduct', { pageSize: 1000 }, controller.signal).then((items) => {
+      setDataProducts(items)
+    }).catch(() => undefined)
+    void fetchObjects<DataSourceObject>('DataSource', { pageSize: 1000 }, controller.signal).then((items) => {
+      setCatalogSources(items)
     }).catch(() => undefined)
     void getFusionAwareness(undefined, controller.signal).then((awareness) => {
       setAwarenessFeatureCount(awareness.metadata.totalFeatures)
@@ -1081,7 +885,8 @@ export default function Dashboard() {
       if (nextVesselTracks.length > 0) {
         setVesselTracks(nextVesselTracks)
       }
-    }).catch(() => undefined)
+      setDataSources((prev) => ({ ...prev, awareness: 'live' }))
+    }).catch(() => setDataSources((prev) => ({ ...prev, awareness: 'unavailable' })))
 
     return () => {
       controller.abort()
@@ -1089,7 +894,13 @@ export default function Dashboard() {
   }, [])
 
   const { isConnected: isAlertSocketConnected } = useWebSocket<AlertSocketMessage>(getAlertsWebSocketUrl(), {
-    parseMessage: (raw) => JSON.parse(raw) as AlertSocketMessage,
+    parseMessage: (raw) => {
+      try {
+        return JSON.parse(raw) as AlertSocketMessage
+      } catch {
+        return { type: 'error', data: {} } as unknown as AlertSocketMessage
+      }
+    },
     onMessage: (message) => {
       if (message.type !== 'alert') return
 
@@ -1112,31 +923,28 @@ export default function Dashboard() {
     },
   })
 
-  useEffect(() => {
-    setFeed(
-      buildLiveFeed({
-        hazards,
-        alerts,
-        pipelines: pipelineRuns,
-        satellitePasses,
-        aircraftTracks,
-        vesselTracks,
-      }),
-    )
-  }, [aircraftTracks, alerts, hazards, pipelineRuns, satellitePasses, vesselTracks])
+  const feed = useMemo(() => buildLiveFeed({
+    hazards,
+    alerts,
+    pipelines: pipelineRuns,
+    satellitePasses,
+    aircraftTracks,
+    vesselTracks,
+  }), [aircraftTracks, alerts, hazards, pipelineRuns, satellitePasses, vesselTracks])
 
-  const dashboardRegions = normalizeDashboardRegions(gseRegions)
-  const activeHazards = [...hazards]
+  const dashboardRegions = useMemo(() => normalizeDashboardRegions(Array.isArray(gseRegions) ? gseRegions : []), [gseRegions])
+  const activeHazards = useMemo(() => (Array.isArray(hazards) ? [...hazards] : [])
     .filter((event) => !event.endTime || new Date(event.endTime) >= REFERENCE_NOW)
-    .sort((left, right) => HAZARD_SEVERITY_WEIGHT[right.severity] - HAZARD_SEVERITY_WEIGHT[left.severity])
+    .sort((left, right) => HAZARD_SEVERITY_WEIGHT[right.severity] - HAZARD_SEVERITY_WEIGHT[left.severity]),
+    [hazards])
 
-  const activeAlerts = [...alerts].sort(
+  const activeAlerts = useMemo(() => (Array.isArray(alerts) ? [...alerts] : []).sort(
     (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
-  )
-  const activeSensors = mockSensors.filter((sensor) => sensor.status === 'ACTIVE')
-  const recentPipelines = [...pipelineRuns].sort(
+  ), [alerts])
+  const activeSensors = useMemo(() => sensors.filter((sensor) => sensor.status === 'ACTIVE'), [sensors])
+  const recentPipelines = useMemo(() => (Array.isArray(pipelineRuns) ? [...pipelineRuns] : []).sort(
     (left, right) => new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime(),
-  )
+  ), [pipelineRuns])
   const latestPipelineRuns = recentPipelines.slice(0, 6)
   const pipelineSuccessRate = recentPipelines.length > 0
     ? recentPipelines.filter((pipeline) => pipeline.status === 'SUCCEEDED').length / recentPipelines.length
@@ -1148,9 +956,9 @@ export default function Dashboard() {
     activeHazards.reduce((total, event) => total + HAZARD_SEVERITY_WEIGHT[event.severity] * 8, 0),
   )
   const aiHealth = clamp(
-    Math.round(((pipelineSuccessRate * 100) * 0.6) + (aiPipeline.llm.available ? 40 : 18)),
+    Math.round(((pipelineSuccessRate * 100) * 0.6) + (aiPipeline?.llm?.available ? 40 : 18)),
   )
-  const sensorCoverage = Math.round((activeSensors.length / mockSensors.length) * 100)
+  const sensorCoverage = sensors.length > 0 ? Math.round((activeSensors.length / sensors.length) * 100) : 0
 
   const activeGroundSensors = activeSensors.filter((sensor) => sensor.type !== 'SATELLITE' && sensor.lastReading)
   const freshnessLagMinutes = average(
@@ -1160,9 +968,9 @@ export default function Dashboard() {
   )
 
   const completenessScore = clamp(
-    ((activeSensors.length / mockSensors.length) * 0.42
-      + (mockDataProducts.length / 6) * 0.28
-      + (mockDataSources.length / 7) * 0.3)
+    (((sensors.length > 0 ? activeSensors.length / sensors.length : 0) * 0.42)
+      + (Math.min(dataProducts.length, 6) / 6) * 0.28
+      + (Math.min(catalogSources.length, 7) / 7) * 0.3)
       * 100,
   )
   const freshnessScore = clamp(100 - freshnessLagMinutes / 2.1)
@@ -1174,7 +982,7 @@ export default function Dashboard() {
   )
   const dataFidelity = Math.round(average([completenessScore, freshnessScore, concordanceScore, anomalyCaptureScore]))
 
-  const highExposureInfrastructure = mockInfrastructure.filter(
+  const highExposureInfrastructure = infrastructureAssets.filter(
     (asset) => asset.exposureLevel === 'HIGH' || asset.exposureLevel === 'EXTREME',
   ).length
 
@@ -1196,7 +1004,7 @@ export default function Dashboard() {
       label: 'AI Pipeline Health',
       value: aiHealth,
       display: `${aiHealth}%`,
-      detail: `${latestPipelineRuns.filter((pipeline) => pipeline.status === 'RUNNING').length} orchestration lanes active | ${aiPipeline.llm.model}`,
+      detail: `${latestPipelineRuns.filter((pipeline) => pipeline.status === 'RUNNING').length} orchestration lanes active | ${aiPipeline?.llm?.model ?? 'offline'}`,
       accent: '#67c8ff',
       series: DIAL_SPARKLINES.aiHealth,
     },
@@ -1204,7 +1012,7 @@ export default function Dashboard() {
       label: 'Data Fidelity',
       value: dataFidelity,
       display: `${dataFidelity}%`,
-      detail: `${mockDataProducts.length} registered products and ${mockDataSources.length} upstream feeds`,
+      detail: `${dataProducts.length} registered products and ${catalogSources.length} upstream feeds`,
       accent: '#77e19c',
       series: DIAL_SPARKLINES.dataFidelity,
     },
@@ -1212,7 +1020,7 @@ export default function Dashboard() {
       label: 'Sensor Mesh',
       value: sensorCoverage,
       display: `${sensorCoverage}%`,
-      detail: `${activeSensors.length}/${mockSensors.length} environmental nodes online`,
+      detail: `${activeSensors.length}/${sensors.length} environmental nodes online`,
       accent: '#3ab3ff',
       series: DIAL_SPARKLINES.sensorMesh,
     },
@@ -1239,7 +1047,7 @@ export default function Dashboard() {
       name: 'Hazard Classifier',
       icon: Activity,
       health: aiPipeline.features.llm_classification ? 96 : 74,
-      latency: aiPipeline.llm.available ? aiPipeline.llm.model : 'LLM unavailable',
+      latency: aiPipeline?.llm?.available ? aiPipeline?.llm?.model ?? 'offline' : 'LLM unavailable',
       detail: aiPipeline.features.anomaly_detection ? 'Anomaly detection pipeline enabled' : 'Anomaly detection disabled',
       accent: '#77e19c',
     },
@@ -1282,7 +1090,7 @@ export default function Dashboard() {
       label: 'Anomaly Capture',
       value: Math.round(anomalyCaptureScore),
       display: `${Math.round(anomalyCaptureScore)}%`,
-      detail: 'AI-assisted event recall',
+      detail: 'Event recall',
       accent: '#fb923c',
       series: QUALITY_SPARKLINES.anomalyCapture,
     },
@@ -1298,14 +1106,12 @@ export default function Dashboard() {
 
   return (
     <motion.div
-      className="relative overflow-hidden rounded-[28px] border border-white/[0.06] bg-[#0A0F1C] p-4 sm:p-6 xl:p-8"
+      className="relative overflow-hidden rounded-lg border border-white/[0.06] bg-[#0b0f0e] p-4 sm:p-6 xl:p-8"
       variants={STAGGER.container}
       initial="hidden"
       animate="visible"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(103,200,255,0.16),transparent_30%),radial-gradient(circle_at_top_right,rgba(79,217,198,0.12),transparent_28%),radial-gradient(circle_at_bottom_center,rgba(15,23,42,0.18),transparent_40%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] [background-size:48px_48px]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_14%,transparent_86%,rgba(255,255,255,0.03))]" />
+      <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:56px_56px]" />
 
       <div className="relative z-10 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-4 p-6 lg:p-7')}>
@@ -1313,18 +1119,22 @@ export default function Dashboard() {
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
-                <p className={KICKER_CLASS}>Environmental Intelligence Control Center</p>
+                <p className={KICKER_CLASS}>Operational picture</p>
                 <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  Sentinel Command Grid
+                  Sentinel Operations
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                  Cross-domain hazard surveillance, AI-assisted classification, and data integrity diagnostics in a
-                  single operating picture for environmental response teams.
+                  Hazard surveillance, classification, and data integrity checks for environmental response teams.
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <LiveBadge label="LIVE MESH" tone="green" />
+                <DataSourceBadge source={
+                  Object.values(dataSources).every((s) => s === 'loading') ? 'loading'
+                  : Object.values(dataSources).some((s) => s === 'live') ? 'live'
+                  : 'unavailable'
+                } />
+                <LiveBadge label="LIVE" tone="green" />
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-300">
                   <span
                     className={cn(
@@ -1361,7 +1171,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className={cn(SUB_PANEL, 'p-4')}>
-                <p className={KICKER_CLASS}>Tracking mesh</p>
+                <p className={KICKER_CLASS}>Tracking coverage</p>
                 <p className="mt-3 text-[30px] font-bold leading-none text-white">
                   {aircraftTracks.length + vesselTracks.length}
                 </p>
@@ -1646,15 +1456,15 @@ export default function Dashboard() {
 
         <motion.section variants={STAGGER.item} className={cn(GLASS_PANEL, 'xl:col-span-2 p-5')}>
           <SectionHeader
-            title="AI Pipeline Health"
-            subtitle="Autonomous inference and orchestration"
+            title="Pipeline Health"
+            subtitle="Inference and orchestration"
             aside={
               <div className="text-right">
                 <p className={KICKER_CLASS}>Current state</p>
                 <p className="mt-2 text-sm font-semibold text-white">
                   {systemHealth.status === 'healthy'
-                    ? `Live backend healthy | ${aiPipeline.llm.available ? 'LLM online' : 'LLM degraded'}`
-                    : 'Fallback telemetry active'}
+                    ? `Live backend healthy | ${aiPipeline?.llm?.available ? 'LLM online' : 'LLM degraded'}`
+                    : 'Live telemetry unavailable'}
                 </p>
               </div>
             }
@@ -1824,7 +1634,12 @@ export default function Dashboard() {
             </div>
 
             <div className="mt-4 space-y-3">
-              {mockDataSources.slice(0, 4).map((source) => {
+              {catalogSources.length === 0 && (
+                <p className="text-sm leading-6 text-slate-400">
+                  No live data-source objects registered.
+                </p>
+              )}
+              {catalogSources.slice(0, 4).map((source) => {
                 const sourceScore = clamp(
                   92
                     - (source.type === 'MODEL' ? 4 : 0)

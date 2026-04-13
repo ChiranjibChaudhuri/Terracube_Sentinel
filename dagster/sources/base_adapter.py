@@ -25,10 +25,20 @@ class GeoJSONFeature:
 
 
 class BaseAdapter(ABC):
-    """Abstract base for all source adapters."""
+    """Abstract base for all source adapters.
+
+    Implements context manager protocol for automatic cleanup.
+    """
 
     def __init__(self):
         self._client: httpx.Client | None = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     @property
     @abstractmethod
@@ -49,7 +59,12 @@ class BaseAdapter(ABC):
 
     @abstractmethod
     def fetch(self, **kwargs) -> list[dict]:
-        """Fetch raw data from the upstream source. Returns list of raw records."""
+        """Fetch raw data from the upstream source. Returns list of raw records.
+
+        All adapters accepting a ``bbox`` parameter use the convention:
+        ``bbox = (lat_min, lng_min, lat_max, lng_max)`` i.e. ``(south, west, north, east)``.
+        Individual adapters reorder as needed for their upstream API.
+        """
         ...
 
     @abstractmethod
@@ -93,4 +108,8 @@ class BaseAdapter(ABC):
 
     def close(self):
         if self._client and not self._client.is_closed:
-            self._client.close()
+            try:
+                self._client.close()
+            except Exception:
+                pass
+            self._client = None

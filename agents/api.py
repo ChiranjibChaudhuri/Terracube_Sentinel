@@ -22,11 +22,70 @@ _allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_credentials=True,
 )
 
 orchestrator = AgentOrchestrator()
+
+
+# ── Startup bootstrap ────────────────────────────────────────────────
+
+
+@app.on_event("startup")
+async def bootstrap_cache():
+    """Run data adapters once on startup to populate cache if empty."""
+    try:
+        import sys as _sys
+
+        dagster_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dagster")
+        if os.path.isdir(dagster_path):
+            _sys.path.insert(0, dagster_path)
+
+        from tools.fusion_tools import _read_cache, ALL_ENTITY_TYPES
+
+        cached = _read_cache(ALL_ENTITY_TYPES, limit=1)
+        if cached:
+            logger.info("Cache already populated with %d features, skipping bootstrap", len(cached))
+            return
+
+        logger.info("Cache empty — running adapter bootstrap...")
+        # Import and run adapters
+        from sources.cache import FusionCache
+        from sources.opensky_adapter import OpenSkyAdapter
+        from sources.eq_adapter import EarthquakeAdapter
+        from sources.weather_adapter import WeatherAlertAdapter
+        from sources.finance_adapter import FinanceAdapter
+        from sources.celestrak_adapter import CelesTrakAdapter
+
+        cache = FusionCache()
+        adapters = [
+            OpenSkyAdapter(),
+            EarthquakeAdapter(),
+            WeatherAlertAdapter(),
+            FinanceAdapter(),
+            CelesTrakAdapter(),
+        ]
+        total = 0
+        for adapter in adapters:
+            try:
+                features = adapter.fetch_and_normalize()
+                for feat in features:
+                    entity_type = feat.properties.get("entityType", adapter.entity_type)
+                    entity_id = f"{entity_type}-{hash(str(feat.properties))}"
+                    cache.set(entity_type, entity_id, feat.to_dict())
+                total += len(features)
+                logger.info("Bootstrap: %s loaded %d features", adapter.source_name, len(features))
+            except Exception as e:
+                logger.warning("Bootstrap: %s failed: %s", adapter.source_name, e)
+            finally:
+                adapter.close()
+        cache.close()
+        logger.info("Bootstrap complete: %d total features cached", total)
+    except Exception as e:
+        logger.warning("Bootstrap failed (non-fatal): %s", e)
+
 
 # ── Lazy singletons (avoid import-time side effects) ─────────────────
 
@@ -108,6 +167,33 @@ async def health() -> HealthResponse:
         status="healthy",
         agents=list(orchestrator.agents.keys()),
     )
+
+
+# ── Data Status ──────────────────────────────────────────────────────
+
+
+@app.get("/status/data")
+async def data_status():
+    """Cache health and entity counts."""
+    try:
+        from tools.fusion_tools import _read_cache, ALL_ENTITY_TYPES
+
+        counts = {}
+        for entity_type in ALL_ENTITY_TYPES:
+            cached = _read_cache([entity_type], limit=1)
+            counts[entity_type] = len(cached)
+        return {
+            "cache_connected": True,
+            "entity_counts": counts,
+            "total_cached": sum(counts.values()),
+        }
+    except Exception as e:
+        return {
+            "cache_connected": False,
+            "error": str(e),
+            "entity_counts": {},
+            "total_cached": 0,
+        }
 
 
 # ── GSE Endpoints ────────────────────────────────────────────────────
@@ -288,8 +374,19 @@ async def situational_awareness(
                 raise HTTPException(status_code=400, detail="Latitude must be between -90 and 90")
             if not (-180 <= min_lng <= 180 and -180 <= max_lng <= 180):
                 raise HTTPException(status_code=400, detail="Longitude must be between -180 and 180")
+            if min_lat >= max_lat:
+                raise HTTPException(status_code=400, detail="min_lat must be less than max_lat")
+            if min_lng >= max_lng:
+                raise HTTPException(status_code=400, detail="min_lng must be less than max_lng")
             bbox = (min_lat, min_lng, max_lat, max_lng)
-        types = entity_types.split(",") if entity_types else None
+        types = None
+        if entity_types:
+            from tools.fusion_tools import ALL_ENTITY_TYPES
+            valid_set = set(ALL_ENTITY_TYPES)
+            types = [t.strip() for t in entity_types.split(",") if t.strip()]
+            invalid = [t for t in types if t not in valid_set]
+            if invalid:
+                raise HTTPException(status_code=400, detail=f"Invalid entity types: {', '.join(invalid)}")
         return await get_situational_awareness(bbox=bbox, entity_types=types)
     except HTTPException:
         raise
@@ -382,7 +479,7 @@ async def websocket_alerts(websocket: WebSocket):
     """WebSocket endpoint for real-time alert push."""
     await websocket.accept()
     engine = _get_alert_engine()
-    engine.ws_channel.register(websocket)
+    await engine.ws_channel.register(websocket)
     try:
         while True:
             await websocket.receive_text()
@@ -391,4 +488,4 @@ async def websocket_alerts(websocket: WebSocket):
     except Exception:
         logger.exception("WebSocket error")
     finally:
-        engine.ws_channel.unregister(websocket)
+        await engine.ws_channel.unregister(websocket)

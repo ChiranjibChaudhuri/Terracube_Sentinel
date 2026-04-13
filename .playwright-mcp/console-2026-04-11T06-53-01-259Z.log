@@ -1,0 +1,28 @@
+[     354ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:5173/api/v1/objects?objectType=PipelineExecution&pageSize=100:0
+[     357ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-BERfW5q2.js:0
+[     363ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-BERfW5q2.js:0
+[     368ms] [ERROR] TypeError: e.map is not a function
+    at tt (http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:19633)
+    at http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:23303
+    at Object.ws [as useMemo] (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:56292)
+    at e.useMemo (http://localhost:5173/assets/chart-vendor-CdguqJwR.js:1:7137)
+    at rt (http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:23298)
+    at Oo (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:47538)
+    at yc (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:69970)
+    at Ic (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:80231)
+    at Mu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:115529)
+    at ku (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114613) @ http://localhost:5173/assets/react-vendor-o9hA0pGM.js:7
+[     368ms] [ERROR] ErrorBoundary caught: TypeError: e.map is not a function
+    at tt (http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:19633)
+    at http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:23303
+    at Object.ws [as useMemo] (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:56292)
+    at e.useMemo (http://localhost:5173/assets/chart-vendor-CdguqJwR.js:1:7137)
+    at rt (http://localhost:5173/assets/Dashboard-BERfW5q2.js:1:23298)
+    at Oo (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:47538)
+    at yc (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:69970)
+    at Ic (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:80231)
+    at Mu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:115529)
+    at ku (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114613) {componentStack: 
+    at rt (http://localhost:5173/assets/Dashboard…ndex-B2IdDUfp.js:2:13704)
+    at we (<anonymous>)} @ http://localhost:5173/assets/index-B2IdDUfp.js:1
+[     370ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-BERfW5q2.js:0

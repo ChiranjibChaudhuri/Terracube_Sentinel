@@ -1,0 +1,15 @@
+dagster<2.0,>=1.9
+dagster-webserver<2.0,>=1.9
+dagster-postgres<1.0,>=0.25
+httpx<1.0,>=0.27
+shapely<3.0,>=2.0
+pystac<2.0,>=1.11
+pystac-client<1.0,>=0.8
+requests<3.0,>=2.32
+boto3<2.0,>=1.35
+redis<6.0,>=5.0
+pydantic<3.0,>=2.0
+
+[dev]
+dagster-webserver<2.0,>=1.9
+pytest>=8.0

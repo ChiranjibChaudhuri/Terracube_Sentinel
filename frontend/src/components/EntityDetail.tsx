@@ -30,7 +30,8 @@ export default function EntityDetail({ entity, onClose }: Props) {
       <div className="space-y-1.5">
         {Object.entries(entity).map(([key, val]) => {
           if (key === 'geometry' || val === null || val === undefined) return null
-          const display = typeof val === 'object' ? JSON.stringify(val) : String(val)
+          const raw = typeof val === 'object' ? JSON.stringify(val) : String(val)
+          const display = raw.length > 500 ? raw.slice(0, 500) + '…' : raw
           return (
             <div key={key} className="flex justify-between gap-2 text-xs">
               <span className="text-slate-400 shrink-0">{key}</span>

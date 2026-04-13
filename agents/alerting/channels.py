@@ -2,9 +2,11 @@
 Alert delivery channels — WebSocket, Webhook, Email, SMS.
 """
 
+import asyncio
 import os
 import json
 import logging
+import smtplib
 from abc import ABC, abstractmethod
 
 import httpx
@@ -35,12 +37,15 @@ class WebSocketChannel(AlertChannel):
 
     def __init__(self):
         self._connections: list = []
+        self._lock = asyncio.Lock()
 
-    def register(self, websocket) -> None:
-        self._connections.append(websocket)
+    async def register(self, websocket) -> None:
+        async with self._lock:
+            self._connections.append(websocket)
 
-    def unregister(self, websocket) -> None:
-        self._connections = [ws for ws in self._connections if ws != websocket]
+    async def unregister(self, websocket) -> None:
+        async with self._lock:
+            self._connections = [ws for ws in self._connections if ws != websocket]
 
     async def send(self, notification: AlertNotification) -> bool:
         payload = json.dumps({
@@ -58,14 +63,15 @@ class WebSocketChannel(AlertChannel):
         })
         sent = 0
         dead = []
-        for ws in self._connections:
-            try:
-                await ws.send_text(payload)
-                sent += 1
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            self._connections.remove(ws)
+        async with self._lock:
+            for ws in self._connections:
+                try:
+                    await ws.send_text(payload)
+                    sent += 1
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                self._connections.remove(ws)
         logger.info("WebSocket alert sent to %d/%d clients", sent, sent + len(dead))
         return sent > 0
 
@@ -152,7 +158,6 @@ class EmailChannel(AlertChannel):
             return False
 
         try:
-            import asyncio
             loop = asyncio.get_event_loop()
             return await loop.run_in_executor(
                 None, self._send_sync, notification
@@ -163,7 +168,6 @@ class EmailChannel(AlertChannel):
 
     def _send_sync(self, notification: AlertNotification) -> bool:
         """Synchronous SMTP send, run in thread executor to avoid blocking event loop."""
-        import smtplib
         from email.mime.text import MIMEText
 
         msg = MIMEText(
@@ -176,9 +180,19 @@ class EmailChannel(AlertChannel):
         msg["From"] = self.from_addr
         msg["To"] = ", ".join(self.to_addrs)
 
-        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-            if self.smtp_user:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_pass)
-            server.send_message(msg)
-        return True
+        try:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=15) as server:
+                if self.smtp_user:
+                    try:
+                        server.starttls()
+                    except smtplib.SMTPException as e:
+                        logger.warning("STARTTLS failed: %s — trying without TLS", e)
+                    server.login(self.smtp_user, self.smtp_pass)
+                server.send_message(msg)
+            return True
+        except smtplib.SMTPException as e:
+            logger.warning("SMTP error: %s", e)
+            return False
+        except OSError as e:
+            logger.warning("SMTP connection error: %s", e)
+            return False

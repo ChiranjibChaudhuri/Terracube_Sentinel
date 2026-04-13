@@ -4,7 +4,7 @@
 services:
   # ─── PostgreSQL 17 with PostGIS + pgvector + AGE ───────────────────────────
   postgres:
-    image: pgvector/pgvector:pg17
+    image: pgvector/pgvector:0.8.0-pg17
     container_name: sentinel-postgres
     restart: unless-stopped
     environment:
@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -22,16 +22,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── TypeDB ────────────────────────────────────────────────────────────────
   typedb:
-    image: typedb/typedb:latest
+    image: typedb/typedb:2.28.3
     container_name: sentinel-typedb
     restart: unless-stopped
     ports:
-      - "${TYPEDB_PORT:-1729}:1729"
+      - "127.0.0.1:${TYPEDB_PORT:-1729}:1729"
     volumes:
       - typedb_data:/opt/typedb-all-linux-x86_64/server/data
     healthcheck:
@@ -40,12 +50,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── MinIO (S3-compatible object storage) ──────────────────────────────────
   minio:
-    image: minio/minio
+    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
     container_name: sentinel-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -53,8 +73,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -63,17 +83,27 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── Valkey (Redis-compatible event bus / cache) ───────────────────────────
   valkey:
-    image: valkey/valkey:8
+    image: valkey/valkey:8-alpine
     container_name: sentinel-valkey
     restart: unless-stopped
     command: valkey-server --requirepass ${VALKEY_PASSWORD}
     ports:
-      - "${VALKEY_PORT:-6379}:6379"
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"
     volumes:
       - valkey_data:/data
     healthcheck:
@@ -82,6 +112,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -90,7 +130,7 @@ services:
     image: quay.io/keycloak/keycloak:26.0
     container_name: sentinel-keycloak
     restart: unless-stopped
-    command: start-dev
+    command: start --hostname-strict=false --proxy=edge --http-enabled=true
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -110,6 +150,16 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -124,7 +174,7 @@ services:
       MYSQL_USER: ${OM_MYSQL_USER}
       MYSQL_PASSWORD: ${OM_MYSQL_PASSWORD}
     ports:
-      - "${OM_MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${OM_MYSQL_PORT:-3306}:3306"
     volumes:
       - om_mysql_data:/var/lib/mysql
     healthcheck:
@@ -133,6 +183,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -142,18 +202,29 @@ services:
     restart: unless-stopped
     environment:
       discovery.type: single-node
-      xpack.security.enabled: "false"
+      xpack.security.enabled: "true"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-changeme_elastic}
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports:
-      - "${OM_ES_PORT:-9200}:9200"
+      - "127.0.0.1:${OM_ES_PORT:-9200}:9200"
     volumes:
       - om_es_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -u elastic:${ELASTIC_PASSWORD:-changeme_elastic} -sf http://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -174,7 +245,9 @@ services:
       ELASTICSEARCH_HOST: openmetadata-elasticsearch
       ELASTICSEARCH_PORT: 9200
       ELASTICSEARCH_SCHEME: http
-      AUTHENTICATION_PROVIDER: no-auth
+      ELASTICSEARCH_USER: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-changeme_elastic}
+      AUTHENTICATION_PROVIDER: basic
       AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
       AUTHORIZER_PRINCIPAL_DOMAIN: "open-metadata.org"
     ports:
@@ -190,12 +263,22 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── Prometheus (Metrics) ──────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v2.54.1
     container_name: sentinel-prometheus
     restart: unless-stopped
     command:
@@ -206,6 +289,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
@@ -213,12 +297,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── Grafana (Dashboards) — port 3002 to avoid conflict with Dagster ──────
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:11.2.2
     container_name: sentinel-grafana
     restart: unless-stopped
     environment:
@@ -243,6 +337,16 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -262,6 +366,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -271,20 +385,52 @@ services:
     container_name: sentinel-frontend
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "5173:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── Apache Superset (BI Dashboards) ───────────────────────────────────────
   superset:
-    image: apache/superset
+    image: apache/superset:4.0.2
     container_name: sentinel-superset
     restart: unless-stopped
     environment:
-      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-terracube-sentinel-secret-key-change-me}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?SUPERSET_SECRET_KEY must be set}
       SUPERSET_LOAD_EXAMPLES: "no"
     ports:
       - "8088:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -294,11 +440,11 @@ services:
     container_name: sentinel-dagster-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: dagster
-      POSTGRES_PASSWORD: dagster
-      POSTGRES_DB: dagster
+      POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - dagster_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -306,6 +452,16 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -326,9 +482,9 @@ services:
     environment:
       DAGSTER_POSTGRES_HOST: dagster-postgres
       DAGSTER_POSTGRES_PORT: "5432"
-      DAGSTER_POSTGRES_USER: dagster
-      DAGSTER_POSTGRES_PASSWORD: dagster
-      DAGSTER_POSTGRES_DB: dagster
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
       FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
@@ -342,10 +498,26 @@ services:
       LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
       ZAI_API_KEY: "${ZAI_API_KEY:-}"
     volumes:
-      - ./dagster:/opt/dagster/app
+      - ./dagster:/opt/dagster/app:ro
     depends_on:
       dagster-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/server_info || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
@@ -360,9 +532,9 @@ services:
     environment:
       DAGSTER_POSTGRES_HOST: dagster-postgres
       DAGSTER_POSTGRES_PORT: "5432"
-      DAGSTER_POSTGRES_USER: dagster
-      DAGSTER_POSTGRES_PASSWORD: dagster
-      DAGSTER_POSTGRES_DB: dagster
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
       FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
@@ -376,16 +548,34 @@ services:
       LLM_MODEL: "${LLM_MODEL:-glm-5-turbo}"
       ZAI_API_KEY: "${ZAI_API_KEY:-}"
     volumes:
-      - ./dagster:/opt/dagster/app
+      - ./dagster:/opt/dagster/app:ro
     depends_on:
       dagster-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'dagster-daemon' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 
   # ─── AI Agents (FastAPI) ───────────────────────────────────────────────────
   agents:
-    build: ./agents
+    build:
+      context: .
+      dockerfile: agents/Dockerfile
     container_name: sentinel-agents
     restart: unless-stopped
     ports:
@@ -398,6 +588,22 @@ services:
       ALERT_WEBHOOK_URL: "${ALERT_WEBHOOK_URL:-}"
     depends_on:
       - valkey
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8001/health\")' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - sentinel
 

@@ -47,3 +47,4 @@ CREATE TABLE ontology.hazard_events_staging (
 );
 
 CREATE INDEX idx_hazard_staging_status ON ontology.hazard_events_staging(status);
+CREATE INDEX idx_hazard_staging_ingested ON ontology.hazard_events_staging(ingested_at DESC);

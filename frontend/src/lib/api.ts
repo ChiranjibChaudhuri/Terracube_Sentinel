@@ -1,6 +1,6 @@
 import type { PipelineExecution } from './types'
 
-const DEFAULT_API_URL = 'http://localhost:8000'
+const DEFAULT_API_URL = '/agents'
 
 type QueryValue = string | number | boolean | null | undefined
 type QueryArrayValue = QueryValue | QueryValue[]
@@ -31,10 +31,13 @@ function resolveBaseUrl() {
 
 function buildUrl(path: string, params?: QueryParams) {
   const baseUrl = resolveBaseUrl()
-  const base = baseUrl.startsWith('http://') || baseUrl.startsWith('https://')
-    ? new URL(baseUrl)
-    : new URL(baseUrl, window.location.origin)
-  const url = new URL(path.startsWith('/') ? path : `/${path}`, `${base.toString()}/`)
+  // Construct the full path by joining base + path (strip leading slashes from path
+  // to avoid overriding the base when using URL constructor)
+  const cleanPath = path.replace(/^\/+/, '')
+  const fullPath = `${baseUrl}/${cleanPath}`
+  const url = fullPath.startsWith('http://') || fullPath.startsWith('https://')
+    ? new URL(fullPath)
+    : new URL(fullPath, window.location.origin)
 
   if (params) {
     for (const [key, rawValue] of Object.entries(params)) {
@@ -375,13 +378,18 @@ export function getAlertsPending(signal?: AbortSignal) {
 }
 
 export function getPipelineExecutions(signal?: AbortSignal) {
-  return request<ObjectCollectionResponse<PipelineExecution>>('/api/v1/objects', {
-    params: {
-      objectType: 'PipelineExecution',
-      pageSize: 100,
-    },
-    signal,
-  }).then((response) => response.data ?? [])
+  // Pipeline executions come from the Foundry /api endpoint (proxied by nginx),
+  // not the agents API. Use fetch directly with the origin-relative path.
+  const url = new URL('/api/v1/objects', window.location.origin)
+  url.searchParams.set('objectType', 'PipelineExecution')
+  url.searchParams.set('pageSize', '100')
+  return fetch(url, { signal })
+    .then((res) => {
+      if (!res.ok) return { data: [] } as ObjectCollectionResponse<PipelineExecution>
+      return res.json() as Promise<ObjectCollectionResponse<PipelineExecution>>
+    })
+    .then((response) => response.data ?? [])
+    .catch(() => [] as PipelineExecution[])
 }
 
 export function getAlertHistory(limit?: number, signal?: AbortSignal) {

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -15,6 +16,7 @@ import {
   Bell,
   Radio,
   ChevronLeft,
+  X,
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 
@@ -40,18 +42,29 @@ export default function Layout() {
   const location = useLocation()
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const current = NAV_ITEMS.find(
     (n) => n.to === location.pathname || (n.to !== '/' && location.pathname.startsWith(n.to)),
   ) ?? NAV_ITEMS[0]
 
   const groups = ['overview', 'analysis', 'data', 'system']
+  const showSidebarLabels = sidebarOpen || mobileNavOpen
 
   return (
     <div className="flex h-screen overflow-hidden noise-overlay" style={{ background: 'var(--bg-primary)' }}>
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${sidebarOpen ? 'w-60' : 'w-[68px]'} flex-shrink-0 flex flex-col transition-all duration-300 ease-out relative`}
+        className={`${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex w-64 flex-col transition-transform duration-200 ease-out md:relative md:translate-x-0 ${sidebarOpen ? 'md:w-60' : 'md:w-[68px]'} md:flex-shrink-0 md:transition-all`}
         style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-subtle)' }}
       >
         {/* Brand */}
@@ -61,35 +74,43 @@ export default function Layout() {
             <Shield className="w-4 h-4 text-cyan-400" />
           </div>
           <AnimatePresence>
-            {sidebarOpen && (
+            {showSidebarLabels && (
               <motion.div
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden whitespace-nowrap"
+                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap"
               >
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-white tracking-tight">TerraCube</span>
-                  <span className="text-[10px] font-medium text-cyan-400/80 uppercase tracking-widest">Sentinel</span>
+                  <span className="text-[10px] font-medium text-cyan-400/80 uppercase">Sentinel</span>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            className="ml-auto rounded-lg p-2 text-slate-400 md:hidden"
+            aria-label="Close navigation"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
+        <nav className="flex-1 overflow-y-auto py-3 px-2" aria-label="Main navigation">
           {groups.map((group) => {
             const items = NAV_ITEMS.filter((n) => n.group === group)
             return (
               <div key={group} className="mb-3">
                 <AnimatePresence>
-                  {sidebarOpen && (
+                  {showSidebarLabels && (
                     <motion.p
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="px-3 mb-1.5 text-[10px] font-semibold tracking-widest"
+                      className="px-3 mb-1.5 text-[10px] font-semibold"
                       style={{ color: 'var(--text-muted)' }}
                     >
                       {GROUP_LABELS[group]}
@@ -105,6 +126,8 @@ export default function Layout() {
                     <Link
                       key={item.to}
                       to={item.to}
+                      aria-current={active ? 'page' : undefined}
+                      aria-label={item.label}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 mb-0.5 focus-ring relative ${
                         active
                           ? 'nav-active-indicator'
@@ -115,6 +138,7 @@ export default function Layout() {
                         color: active ? '#38bdf8' : 'var(--text-secondary)',
                       }}
                       title={item.label}
+                      onClick={() => setMobileNavOpen(false)}
                       onMouseEnter={(e) => {
                         if (!active) {
                           e.currentTarget.style.background = 'rgba(99, 130, 191, 0.06)'
@@ -130,7 +154,7 @@ export default function Layout() {
                     >
                       <Icon className="w-[18px] h-[18px] flex-shrink-0" />
                       <AnimatePresence>
-                        {sidebarOpen && (
+                        {showSidebarLabels && (
                           <motion.span
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -150,9 +174,10 @@ export default function Layout() {
         </nav>
 
         {/* Sidebar footer */}
-        <div className="px-3 py-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        <div className="hidden px-3 py-3 md:block" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <button
             onClick={toggleSidebar}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs transition-all duration-150 focus-ring"
             style={{ color: 'var(--text-muted)' }}
             onMouseEnter={(e) => {
@@ -177,7 +202,7 @@ export default function Layout() {
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <header
           className="flex items-center justify-between h-14 px-5"
@@ -185,22 +210,23 @@ export default function Layout() {
         >
           <div className="flex items-center gap-3">
             <button
-              onClick={toggleSidebar}
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Toggle navigation menu"
               className="p-1.5 rounded-lg transition-colors focus-ring md:hidden"
               style={{ color: 'var(--text-muted)' }}
             >
               <Menu className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-1.5 text-sm">
+            <div className="min-w-0 flex items-center gap-1.5 text-sm">
               <span style={{ color: 'var(--text-muted)' }}>Sentinel</span>
               <ChevronRight className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
-              <span className="font-medium text-white">{current.label}</span>
+              <span className="truncate font-medium text-white">{current.label}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* Live indicator */}
-            <div className="badge-live badge-live-green mr-2">
+            <div className="badge-live badge-live-green mr-2 hidden sm:inline-flex">
               <Radio className="w-3 h-3" />
               <span>LIVE</span>
             </div>
@@ -236,7 +262,7 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto p-6" style={{ background: 'var(--bg-primary)' }}>
+        <main className="flex-1 overflow-auto p-4 md:p-6" style={{ background: 'var(--bg-primary)' }}>
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 6 }}
@@ -253,7 +279,7 @@ export default function Layout() {
           style={{ background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
         >
           <span>TerraCube Sentinel v0.1.0</span>
-          <span>Open Foundry Ontology | Dagster Pipelines | GLM-5 AI</span>
+          <span className="hidden sm:inline">Open Foundry Ontology | Dagster Pipelines | GLM-5 AI</span>
         </footer>
       </div>
     </div>

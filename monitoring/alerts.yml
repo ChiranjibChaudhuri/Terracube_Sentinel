@@ -1,0 +1,62 @@
+groups:
+  - name: sentinel-service-health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for more than 2 minutes."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 1024
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "{{ $labels.job }} is using {{ $value | humanize }}MB of memory."
+
+  - name: sentinel-agents
+    rules:
+      - alert: AgentsUnhealthy
+        expr: probe_success{job="agents"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI Agents API is unhealthy"
+          description: "The agents health endpoint has been failing for more than 3 minutes."
+
+  - name: sentinel-infrastructure
+    rules:
+      - alert: MinIODiskUsageHigh
+        expr: minio_cluster_disk_free_bytes / minio_cluster_disk_total_bytes < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO disk space critically low"
+          description: "Less than 10% disk space remaining on MinIO cluster."
+
+      - alert: PrometheusStorageHigh
+        expr: prometheus_tsdb_storage_blocks_bytes / 1024 / 1024 / 1024 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus storage exceeds 10GB"
+          description: "TSDB storage is using {{ $value | humanize }}GB."
+
+  - name: sentinel-dagster
+    rules:
+      - alert: DagsterWebserverDown
+        expr: up{job="dagster"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dagster webserver is down"
+          description: "Dagster webserver has been unreachable for more than 3 minutes."

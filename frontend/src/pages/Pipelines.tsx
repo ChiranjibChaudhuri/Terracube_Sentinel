@@ -1,7 +1,9 @@
+import { useEffect, useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { motion } from 'framer-motion'
-import { Clock, CheckCircle, XCircle, Loader, ArrowRight, Activity, BarChart3 } from 'lucide-react'
-import { mockPipelineExecutions } from '../lib/mock-data'
+import { Clock, CheckCircle, XCircle, Loader, ArrowRight, Activity, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react'
+import { fetchObjects } from '../lib/api-client'
+import type { PipelineExecution } from '../lib/types'
 
 const PIPELINE_DEFS = [
   { name: 'real_time_hazards', schedule: 'Every 5 minutes', assets: ['fetch_open_meteo_weather', 'fetch_usgs_earthquakes', 'fetch_nasa_firms_fires', 'fetch_nasa_eonet_events', 'normalize_hazard_records', 'load_hazards_to_foundry'] },
@@ -26,32 +28,91 @@ const stagger = {
 }
 
 export default function Pipelines() {
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineExecution[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadPipelineRuns() {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const runs = await fetchObjects<PipelineExecution>('PipelineExecution', { pageSize: 1000 }, controller.signal)
+        setPipelineRuns(
+          runs.toSorted((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
+        )
+      } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return
+        setPipelineRuns([])
+        setError(loadError instanceof Error ? loadError.message : String(loadError))
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadPipelineRuns()
+    return () => controller.abort()
+  }, [refreshKey])
+
+  const statusCounts = useMemo(
+    () => (['SUCCEEDED', 'FAILED', 'RUNNING', 'PENDING'] as const).map((status) => ({
+      status,
+      count: pipelineRuns.filter((p) => p.status === status).length,
+      cfg: STATUS_CONFIG[status],
+    })),
+    [pipelineRuns],
+  )
+
   return (
     <motion.div className="space-y-6" variants={stagger.container} initial="hidden" animate="visible">
-      {/* Header */}
-      <motion.div variants={stagger.item} className="flex items-center justify-between">
+      <motion.div variants={stagger.item} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <Activity className="w-5 h-5 text-cyan-400" />
           <h1 className="text-lg font-bold text-white">Data Pipelines</h1>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: 'rgba(79,217,198,0.08)', border: '1px solid rgba(79,217,198,0.2)', color: '#4fd9c6' }}
+          >
+            {isLoading ? 'Loading' : `${pipelineRuns.length} live runs`}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          {(['SUCCEEDED', 'FAILED', 'RUNNING', 'PENDING'] as const).map((status) => {
-            const count = mockPipelineExecutions.filter((p) => p.status === status).length
-            const cfg = STATUS_CONFIG[status]
-            return (
-              <div key={status} className="flex items-center gap-1.5 text-xs">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
-                <span style={{ color: 'var(--text-muted)' }}>{count} {status.toLowerCase()}</span>
-              </div>
-            )
-          })}
+        <div className="flex flex-wrap items-center gap-3">
+          {statusCounts.map(({ status, count, cfg }) => (
+            <div key={status} className="flex items-center gap-1.5 text-xs">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+              <span style={{ color: 'var(--text-muted)' }}>{count} {status.toLowerCase()}</span>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setRefreshKey((value) => value + 1)}
+            disabled={isLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-40 focus-ring"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
       </motion.div>
 
-      {/* Pipeline cards */}
+      {error && (
+        <motion.div
+          variants={stagger.item}
+          className="flex items-start gap-3 rounded-lg px-4 py-3 text-sm"
+          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)', color: '#fb7185' }}
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </motion.div>
+      )}
+
       <motion.div variants={stagger.item} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {PIPELINE_DEFS.map((pipe) => {
-          const runs = mockPipelineExecutions.filter((r) => r.pipelineName === pipe.name)
+          const runs = pipelineRuns.filter((r) => r.pipelineName === pipe.name)
           const latest = runs[0]
           const cfg = latest ? STATUS_CONFIG[latest.status] ?? STATUS_CONFIG.PENDING : STATUS_CONFIG.PENDING
           const StatusIcon = cfg.icon
@@ -75,8 +136,7 @@ export default function Pipelines() {
                 </span>
               </div>
 
-              {/* Recent runs */}
-              {runs.length > 0 && (
+              {runs.length > 0 ? (
                 <div className="space-y-1.5 mb-4">
                   {runs.slice(0, 3).map((run) => {
                     const rcfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.PENDING
@@ -91,9 +151,12 @@ export default function Pipelines() {
                     )
                   })}
                 </div>
+              ) : (
+                <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {isLoading ? 'Checking run history' : 'No live run registered for this pipeline'}
+                </p>
               )}
 
-              {/* Asset dependency graph */}
               <div className="pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
                 <h4 className="text-[10px] uppercase font-semibold tracking-widest mb-2.5" style={{ color: 'var(--text-muted)' }}>Asset Graph</h4>
                 <div className="flex items-center gap-1 flex-wrap">
@@ -118,17 +181,13 @@ export default function Pipelines() {
         })}
       </motion.div>
 
-      {/* Pipeline health summary */}
       <motion.div variants={stagger.item} className="glass-card p-5">
         <div className="flex items-center gap-2 mb-4">
           <BarChart3 className="w-4 h-4 text-cyan-400" />
           <h2 className="text-sm font-semibold text-white">Pipeline Health Summary</h2>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {(['SUCCEEDED', 'FAILED', 'RUNNING', 'PENDING'] as const).map((status) => {
-            const count = mockPipelineExecutions.filter((p) => p.status === status).length
-            const cfg = STATUS_CONFIG[status]
-            return (
+          {statusCounts.map(({ status, count, cfg }) => (
               <div
                 key={status}
                 className="p-4 rounded-xl text-center"
@@ -137,8 +196,7 @@ export default function Pipelines() {
                 <p className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</p>
                 <p className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--text-muted)' }}>{status}</p>
               </div>
-            )
-          })}
+          ))}
         </div>
       </motion.div>
     </motion.div>

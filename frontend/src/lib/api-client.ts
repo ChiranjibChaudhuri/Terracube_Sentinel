@@ -6,6 +6,21 @@ interface GraphQLResponse<T> {
   errors?: Array<{ message: string }>
 }
 
+export interface ObjectCollectionResponse<T> {
+  data: T[]
+  total: number
+}
+
+export interface LinkRecord {
+  id?: string
+  _id?: string
+  linkType?: string
+  from?: string
+  to?: string
+  properties?: Record<string, unknown>
+  createdAt?: string
+}
+
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = localStorage.getItem('foundry_token')
@@ -18,11 +33,13 @@ function authHeaders(): Record<string, string> {
 export async function query<T = unknown>(
   gql: string,
   variables?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const res = await fetch(GRAPHQL_URL, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ query: gql, variables }),
+    signal,
   })
   if (!res.ok) {
     throw new Error(`GraphQL request failed: ${res.status} ${res.statusText}`)
@@ -40,10 +57,20 @@ export async function mutate<T = unknown>(
   return query<T>(gql, variables)
 }
 
-export async function fetchObjects(
+export async function fetchObjects<T = Record<string, unknown>>(
   objectType: string,
   filters?: Record<string, unknown>,
-): Promise<Record<string, unknown>[]> {
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const response = await fetchObjectCollection<T>(objectType, filters, signal)
+  return response.data
+}
+
+export async function fetchObjectCollection<T = Record<string, unknown>>(
+  objectType: string,
+  filters?: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ObjectCollectionResponse<T>> {
   const params = new URLSearchParams({ objectType })
   if (filters) {
     for (const [k, v] of Object.entries(filters)) {
@@ -52,12 +79,16 @@ export async function fetchObjects(
       }
     }
   }
-  const res = await fetch(`${API_URL}/objects?${params}`)
+  const res = await fetch(`${API_URL}/objects?${params}`, { signal })
   if (!res.ok) {
     throw new Error(`Fetch objects failed: ${res.status} ${res.statusText}`)
   }
   const json = await res.json()
-  return json.data ?? []
+  const data = (json.data ?? []) as T[]
+  return {
+    data,
+    total: Number(json.total ?? data.length),
+  }
 }
 
 export async function fetchObject(objectId: string): Promise<Record<string, unknown>> {
@@ -66,6 +97,31 @@ export async function fetchObject(objectId: string): Promise<Record<string, unkn
     throw new Error(`Fetch object failed: ${res.status} ${res.statusText}`)
   }
   return res.json()
+}
+
+export async function fetchLinks<T = LinkRecord>(
+  filters?: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<ObjectCollectionResponse<T>> {
+  const params = new URLSearchParams()
+  if (filters) {
+    for (const [k, v] of Object.entries(filters)) {
+      if (v != null) {
+        params.set(k, String(v))
+      }
+    }
+  }
+  const suffix = params.toString() ? `?${params}` : ''
+  const res = await fetch(`${API_URL}/links${suffix}`, { signal })
+  if (!res.ok) {
+    throw new Error(`Fetch links failed: ${res.status} ${res.statusText}`)
+  }
+  const json = await res.json()
+  const data = (json.data ?? []) as T[]
+  return {
+    data,
+    total: Number(json.total ?? data.length),
+  }
 }
 
 // ── Agents API (proxied via /agents or direct to :8001) ──────────────

@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.vscode
+.idea
+.DS_Store
+*.md
+!README.md

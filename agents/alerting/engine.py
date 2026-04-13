@@ -38,6 +38,8 @@ class AlertEngine:
         self._pending: list[AlertNotification] = []
         # Alert history
         self._history: list[AlertNotification] = []
+        # Lock for escalation check to prevent concurrent processing
+        self._escalation_lock = asyncio.Lock()
 
     def add_channel(self, channel: AlertChannel) -> None:
         self.channels.append(channel)
@@ -150,6 +152,10 @@ class AlertEngine:
 
     async def _check_escalation(self) -> None:
         """Escalate unacknowledged alerts past timeout."""
+        async with self._escalation_lock:
+            await self._do_check_escalation()
+
+    async def _do_check_escalation(self) -> None:
         now = datetime.now(timezone.utc)
         for notification in self._pending:
             if notification.acknowledged:

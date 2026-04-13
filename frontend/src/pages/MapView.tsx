@@ -1,17 +1,13 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from 'react-leaflet'
 import { Icon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Map as MapIcon, Globe } from 'lucide-react'
-import {
-  mockHazardEvents,
-  mockSensors,
-  mockInfrastructure,
-  mockAircraft,
-  mockVessels,
-  mockGSERegions,
-} from '../lib/mock-data'
 import type { GeoJSONPoint } from '../lib/types'
+import type { GseRegionSummaryResponse } from '../lib/api'
+import { useAwarenessData } from '../hooks/useAwarenessData'
+import { DataSourceBadge } from '../components/DataSourceBadge'
+import { formatRegionName } from '../lib/awareness-normalizers'
 import LayerPanel, { type LayerConfig } from '../components/LayerPanel'
 import TimelineControls from '../components/TimelineControls'
 import EntityDetail from '../components/EntityDetail'
@@ -24,19 +20,11 @@ const THREAT_COLORS: Record<string, string> = {
   STABLE: '#22c55e', ELEVATED: '#eab308', HEIGHTENED: '#f97316', CRITICAL: '#ef4444',
 }
 
-const sensorIcon = new Icon({
-  iconUrl: 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%2338bdf8" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M4.5 12.5a8 8 0 0 1 15 0"/><path d="M2 12.5a12 12 0 0 1 20 0"/></svg>'
-  ),
-  iconSize: [24, 24], iconAnchor: [12, 12],
-})
-
-const infraIcon = new Icon({
-  iconUrl: 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>'
-  ),
-  iconSize: [20, 20], iconAnchor: [10, 10],
-})
+const GSE_REGION_COORDS: Record<string, [number, number]> = {
+  'middle-east': [30, 43], 'south-asia': [22, 78], 'europe': [50, 15],
+  'east-asia': [38, 120], 'north-america': [40, -95], 'africa': [5, 20],
+  'south-america': [-15, -60], 'oceania': [-25, 140],
+}
 
 const aircraftIcon = new Icon({
   iconUrl: 'data:image/svg+xml,' + encodeURIComponent(
@@ -52,11 +40,21 @@ const vesselIcon = new Icon({
   iconSize: [20, 20], iconAnchor: [10, 10],
 })
 
-function GlobeCanvas() {
+interface GlobeCanvasProps {
+  gseRegions: GseRegionSummaryResponse[]
+}
+
+function GlobeCanvas({ gseRegions }: GlobeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rotRef = useRef(0)
   const dragging = useRef(false)
   const lastX = useRef(0)
+  const regionsRef = useRef(gseRegions)
+
+  // Keep the ref in sync so the animation loop always uses latest data
+  useEffect(() => {
+    regionsRef.current = gseRegions
+  }, [gseRegions])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -70,7 +68,7 @@ function GlobeCanvas() {
     const cy = h / 2
     const r = Math.min(cx, cy) * 0.85
 
-    let animId: number
+    let animId: number | undefined
 
     const draw = () => {
       ctx.clearRect(0, 0, w, h)
@@ -127,8 +125,8 @@ function GlobeCanvas() {
         ctx.stroke()
       }
 
-      // Plot GSE regions
-      mockGSERegions.forEach((region) => {
+      // Plot GSE regions from live data
+      regionsRef.current.forEach((region) => {
         const coords: Record<string, [number, number]> = {
           'middle-east': [43, 30], 'south-asia': [78, 22], 'europe': [15, 50],
           'east-asia': [120, 38], 'north-america': [-95, 40], 'africa': [20, 5],
@@ -160,7 +158,7 @@ function GlobeCanvas() {
         // Label
         ctx.font = '10px Inter, sans-serif'
         ctx.fillStyle = '#e2e8f0'
-        ctx.fillText(region.regionName, x + pulseR * 0.6 + 4, y + 3)
+        ctx.fillText(formatRegionName(region.regionId), x + pulseR * 0.6 + 4, y + 3)
       })
 
       rotRef.current += 0.15
@@ -168,7 +166,9 @@ function GlobeCanvas() {
     }
 
     draw()
-    return () => cancelAnimationFrame(animId)
+    return () => {
+      if (animId !== undefined) cancelAnimationFrame(animId)
+    }
   }, [])
 
   return (
@@ -186,19 +186,26 @@ function GlobeCanvas() {
 }
 
 export default function MapView() {
+  const { hazards, aircraft, vessels, gseRegions, dataSource, isLoading } = useAwarenessData()
+
   const [mode, setMode] = useState<'2d' | '3d'>('2d')
   const [selectedEntity, setSelectedEntity] = useState<Record<string, unknown> | null>(null)
-  const [layers, setLayers] = useState<LayerConfig[]>([
-    { id: 'hazards', label: 'Hazard Events', color: '#ef4444', visible: true, count: mockHazardEvents.length },
-    { id: 'sensors', label: 'Sensors', color: '#38bdf8', visible: true, count: mockSensors.length },
-    { id: 'infrastructure', label: 'Infrastructure', color: '#94a3b8', visible: true, count: mockInfrastructure.length },
-    { id: 'aircraft', label: 'Aircraft', color: '#38bdf8', visible: true, count: mockAircraft.length },
-    { id: 'vessels', label: 'Vessels', color: '#3b82f6', visible: true, count: mockVessels.length },
-    { id: 'gse', label: 'GSE Threat Zones', color: '#f97316', visible: true, count: mockGSERegions.length },
-  ])
+  const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>({
+    hazards: true,
+    aircraft: true,
+    vessels: true,
+    gse: true,
+  })
+
+  const layers: LayerConfig[] = useMemo(() => [
+    { id: 'hazards', label: 'Hazard Events', color: '#ef4444', visible: layerVisibility.hazards, count: hazards.length },
+    { id: 'aircraft', label: 'Aircraft', color: '#38bdf8', visible: layerVisibility.aircraft, count: aircraft.length },
+    { id: 'vessels', label: 'Vessels', color: '#3b82f6', visible: layerVisibility.vessels, count: vessels.length },
+    { id: 'gse', label: 'GSE Threat Zones', color: '#f97316', visible: layerVisibility.gse, count: gseRegions.length },
+  ], [aircraft.length, gseRegions.length, hazards.length, layerVisibility, vessels.length])
 
   const toggleLayer = useCallback((id: string) => {
-    setLayers((prev) => prev.map((l) => l.id === id ? { ...l, visible: !l.visible } : l))
+    setLayerVisibility((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
   }, [])
 
   const isVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
@@ -221,6 +228,11 @@ export default function MapView() {
         </button>
       </div>
 
+      {/* Data source badge */}
+      <div className="absolute top-4 left-4 z-[1000]">
+        <DataSourceBadge source={dataSource} />
+      </div>
+
       {/* Entity detail panel */}
       <EntityDetail entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
 
@@ -230,6 +242,13 @@ export default function MapView() {
       {/* Timeline */}
       <TimelineControls />
 
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 z-[999] flex items-center justify-center bg-[#0f172a]/60 backdrop-blur-sm">
+          <div className="text-sm text-slate-400 animate-pulse">Loading awareness data...</div>
+        </div>
+      )}
+
       {mode === '2d' ? (
         <MapContainer center={[20, 0]} zoom={2} className="h-full w-full" style={{ background: '#0f172a' }}>
           <TileLayer
@@ -238,13 +257,8 @@ export default function MapView() {
           />
 
           {/* GSE threat zones */}
-          {isVisible('gse') && mockGSERegions.map((region) => {
-            const coords: Record<string, [number, number]> = {
-              'middle-east': [30, 43], 'south-asia': [22, 78], 'europe': [50, 15],
-              'east-asia': [38, 120], 'north-america': [40, -95], 'africa': [5, 20],
-              'south-america': [-15, -60], 'oceania': [-25, 140],
-            }
-            const [lat, lng] = coords[region.regionId] ?? [0, 0]
+          {isVisible('gse') && gseRegions.map((region) => {
+            const [lat, lng] = GSE_REGION_COORDS[region.regionId] ?? [0, 0]
             const color = THREAT_COLORS[region.threatLevel] ?? '#6b7280'
             return (
               <CircleMarker
@@ -252,13 +266,14 @@ export default function MapView() {
                 center={[lat, lng]}
                 radius={20 + region.gseScore / 5}
                 pathOptions={{ color, fillColor: color, fillOpacity: 0.1, weight: 1, dashArray: '4 4' }}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'GSE Zone', ...region }) }}
+                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'GSE Zone', regionName: formatRegionName(region.regionId), ...region }) }}
               >
                 <Popup>
                   <div className="text-xs space-y-1">
-                    <strong>{region.regionName}</strong>
+                    <strong>{formatRegionName(region.regionId)}</strong>
                     <div>GSE: {region.gseScore} ({region.threatLevel})</div>
-                    <div>Events: {region.eventCount} | Top: {region.topCategory}</div>
+                    <div>Events: {region.eventCount}</div>
+                    {region.escalationAlert && <div className="text-red-500 font-semibold">ESCALATION ALERT</div>}
                   </div>
                 </Popup>
               </CircleMarker>
@@ -266,7 +281,7 @@ export default function MapView() {
           })}
 
           {/* Hazard events */}
-          {isVisible('hazards') && mockHazardEvents.map((e) => {
+          {isVisible('hazards') && hazards.map((e) => {
             const geom = e.geometry as GeoJSONPoint
             const [lng, lat] = geom.coordinates
             const color = SEVERITY_COLORS[e.alertLevel] ?? '#22c55e'
@@ -290,43 +305,8 @@ export default function MapView() {
             )
           })}
 
-          {/* Sensors */}
-          {isVisible('sensors') && mockSensors.map((s) => {
-            const geom = s.geometry as GeoJSONPoint
-            const [lng, lat] = geom.coordinates
-            if (lat === 0 && lng === 0) return null
-            return (
-              <Marker key={s.id} position={[lat, lng]} icon={sensorIcon}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'Sensor', ...s, geometry: undefined }) }}>
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{s.name}</strong>
-                    <div>Type: {s.type} | Status: {s.status}</div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
-
-          {/* Infrastructure */}
-          {isVisible('infrastructure') && mockInfrastructure.map((i) => {
-            const geom = i.geometry as GeoJSONPoint
-            const [lng, lat] = geom.coordinates
-            return (
-              <Marker key={i.id} position={[lat, lng]} icon={infraIcon}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'InfrastructureAsset', ...i, geometry: undefined }) }}>
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{i.name}</strong>
-                    <div>Type: {i.type} | Exposure: {i.exposureLevel}</div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
-
           {/* Aircraft */}
-          {isVisible('aircraft') && mockAircraft.map((a) => {
+          {isVisible('aircraft') && aircraft.map((a) => {
             const geom = a.geometry as GeoJSONPoint
             const [lng, lat] = geom.coordinates
             return (
@@ -343,7 +323,7 @@ export default function MapView() {
           })}
 
           {/* Vessels */}
-          {isVisible('vessels') && mockVessels.map((v) => {
+          {isVisible('vessels') && vessels.map((v) => {
             const geom = v.geometry as GeoJSONPoint
             const [lng, lat] = geom.coordinates
             return (
@@ -361,7 +341,7 @@ export default function MapView() {
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-[#020617] flex items-center justify-center">
-          <GlobeCanvas />
+          <GlobeCanvas gseRegions={gseRegions} />
         </div>
       )}
     </div>

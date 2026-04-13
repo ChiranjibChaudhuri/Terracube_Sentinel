@@ -43,7 +43,7 @@ export default function SettingsPage() {
             <input
               type="text"
               readOnly
-              value="http://localhost:8080/api/v1"
+              value="http://localhost:4000/api/v1"
               className="w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none cursor-not-allowed"
               style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
             />
@@ -79,12 +79,12 @@ export default function SettingsPage() {
         </div>
         <div className="space-y-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <p>
-            <strong className="text-white">TerraCube Sentinel</strong> is an open-source Palantir
-            Foundry alternative for Earth Observation and planetary intelligence.
+            <strong className="text-white">TerraCube Sentinel</strong> supports Earth Observation,
+            hazard monitoring, and geospatial operations.
           </p>
           <p>
-            Built on Open Foundry, TypeDB, PostGIS, Dagster, and AI agents, it provides a complete
-            platform for ingesting, linking, analyzing, and acting on geospatial and environmental data.
+            Built on Open Foundry, PostGIS, Dagster, and model-assisted pipelines, it ingests,
+            links, and audits geospatial and environmental data.
           </p>
         </div>
 

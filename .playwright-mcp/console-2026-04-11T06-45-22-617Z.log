@@ -1,0 +1,49 @@
+[      71ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=16de7b92:14337
+[     412ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/health:0
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/ai/status:0
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/gse/regions:0
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/alerts/pending:0
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/api/v1/objects?objectType=PipelineExecution&pageSize=100:0
+[     442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/fusion/awareness:0
+[     443ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/health:0
+[     443ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/ai/status:0
+[     443ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/gse/regions:0
+[     443ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/alerts/pending:0
+[     472ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/api/v1/objects?objectType=PipelineExecution&pageSize=100:0
+[     472ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8000/fusion/awareness:0
+[     474ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     475ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     491ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     519ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     520ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     525ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     539ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     550ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     551ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     555ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     560ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     570ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     575ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     582ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     592ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     596ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     604ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     613ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     618ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     658ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     667ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     671ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     808ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[     818ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[     823ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    1063ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[    1137ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    1174ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    2002ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[    2028ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    2034ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    3793ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45
+[    3869ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    3904ms] [WARNING] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/src/hooks/useWebSocket.ts:73
+[    7093ms] [ERROR] WebSocket connection to 'ws://localhost:8000/ws/alerts' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5173/src/hooks/useWebSocket.ts:45

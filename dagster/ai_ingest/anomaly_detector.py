@@ -84,7 +84,7 @@ def _detect_frequency_spike(
     items: list[dict[str, Any]],
     history: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Flag regions where current event count is >2 std dev above the mean."""
+    """Flag regions where current daily-normalized event count is >2 std dev above the mean."""
     anomalies: list[dict[str, Any]] = []
     if not history:
         return anomalies
@@ -106,12 +106,30 @@ def _detect_frequency_spike(
         except (ValueError, TypeError):
             pass
 
-    # Current batch counts
+    # Current batch counts — normalize to daily rate so we compare apples to apples.
+    # Estimate the batch time span from item timestamps, falling back to 1 day.
     current_counts: Counter[str] = Counter()
+    batch_timestamps: list[datetime] = []
     for item in items:
         current_counts[_get_region(item)] += 1
+        props = item.get("properties", item)
+        ts = props.get("timestamp") or props.get("startTime") or ""
+        if ts:
+            try:
+                batch_timestamps.append(
+                    datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                )
+            except (ValueError, TypeError):
+                pass
 
-    for region, current in current_counts.items():
+    # Compute batch span in days (min 1 hour to avoid extreme scaling)
+    if len(batch_timestamps) >= 2:
+        span_seconds = (max(batch_timestamps) - min(batch_timestamps)).total_seconds()
+        batch_days = max(span_seconds / 86400.0, 1.0 / 24.0)
+    else:
+        batch_days = 1.0
+
+    for region, raw_count in current_counts.items():
         daily = hist_counts.get(region)
         if not daily or len(daily) < 2:
             continue
@@ -122,18 +140,21 @@ def _detect_frequency_spike(
             continue
         if stdev == 0:
             continue
-        z = (current - mean) / stdev
+        # Normalize batch count to a daily rate for fair comparison
+        daily_rate = raw_count / batch_days
+        z = (daily_rate - mean) / stdev
         if z > 2.0:
             anomalies.append({
                 "type": "FREQUENCY_SPIKE",
                 "description": (
-                    f"Region '{region}' has {current} events in current batch "
-                    f"(mean={mean:.1f}, stdev={stdev:.1f}, z={z:.2f})"
+                    f"Region '{region}' has {raw_count} events in current batch "
+                    f"(daily_rate={daily_rate:.1f}, mean={mean:.1f}, stdev={stdev:.1f}, z={z:.2f})"
                 ),
                 "severity": "HIGH" if z > 3 else "MODERATE",
                 "affected_region": region,
                 "data_points": {
-                    "current_count": current,
+                    "current_count": raw_count,
+                    "daily_rate": round(daily_rate, 2),
                     "mean": round(mean, 2),
                     "stdev": round(stdev, 2),
                     "z_score": round(z, 2),

@@ -4,7 +4,7 @@ Per-region composite GSE scoring with history and trend analysis.
 
 import os
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 import httpx
@@ -16,7 +16,11 @@ from .patterns import PatternDetector, PatternMatch
 logger = logging.getLogger(__name__)
 
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
-FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN", "")
+FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
+
+
+def _foundry_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {FOUNDRY_TOKEN}"} if FOUNDRY_TOKEN else {}
 
 # Map hazard types and event types to GSE categories
 HAZARD_TO_CATEGORY = {
@@ -88,7 +92,7 @@ class GSEScorer:
     async def _fetch_events(self) -> list[GSEEvent]:
         """Fetch events from Foundry and convert to GSEEvent objects."""
         events: list[GSEEvent] = []
-        headers = {"Authorization": f"Bearer {FOUNDRY_TOKEN}"}
+        headers = _foundry_headers()
 
         async with httpx.AsyncClient(timeout=30.0, base_url=FOUNDRY_API_URL) as client:
             # Fetch hazard events
@@ -144,7 +148,7 @@ class GSEScorer:
                     except (ValueError, TypeError):
                         timestamp = datetime.now(timezone.utc)
                     fatalities = int(props.get("fatalities", 0) or 0)
-                    severity = "CRITICAL" if fatalities > 10 else "HIGH" if fatalities > 0 else "MODERATE"
+                    severity = "CRITICAL" if fatalities > 10 else "HIGH" if fatalities > 0 else "LOW"
                     events.append(GSEEvent(
                         event_id=props.get("eventId", ""),
                         category=category,
@@ -159,28 +163,7 @@ class GSEScorer:
             except Exception as e:
                 logger.warning("Failed to fetch armed conflicts: %s", e)
 
-        # Generate synthetic events if none found (for demo)
         if not events:
-            logger.warning(
-                "No events fetched from Foundry API — using synthetic data. "
-                "Set FOUNDRY_API_URL and ensure the API is running for real data."
-            )
-            events = self._synthetic_events()
+            logger.info("No GSE events fetched from Foundry API")
 
         return events
-
-    def _synthetic_events(self) -> list[GSEEvent]:
-        """Generate synthetic events for demo/development."""
-        now = datetime.now(timezone.utc)
-        return [
-            GSEEvent("ev-1", "natural_disaster", "HIGH", 0.9, now - timedelta(hours=2), "east-asia", "usgs", 35.7, 139.7),
-            GSEEvent("ev-2", "conflict", "CRITICAL", 0.85, now - timedelta(hours=4), "middle-east", "acled", 33.3, 44.4),
-            GSEEvent("ev-3", "political", "MODERATE", 0.7, now - timedelta(hours=6), "europe", "gdelt", 48.9, 2.4),
-            GSEEvent("ev-4", "economic", "HIGH", 0.8, now - timedelta(hours=1), "north-america", "finance", 40.7, -74.0),
-            GSEEvent("ev-5", "natural_disaster", "CRITICAL", 0.95, now - timedelta(hours=3), "south-asia", "firms", 20.6, 78.9),
-            GSEEvent("ev-6", "health", "MODERATE", 0.6, now - timedelta(hours=12), "africa", "who", 9.1, 8.7),
-            GSEEvent("ev-7", "conflict", "HIGH", 0.9, now - timedelta(hours=5), "middle-east", "acled", 34.8, 38.0),
-            GSEEvent("ev-8", "terrorism", "CRITICAL", 0.75, now - timedelta(hours=8), "south-asia", "acled", 30.4, 69.3),
-            GSEEvent("ev-9", "migration", "MODERATE", 0.65, now - timedelta(hours=10), "europe", "unhcr", 38.0, 23.7),
-            GSEEvent("ev-10", "energy", "HIGH", 0.8, now - timedelta(hours=7), "europe", "iea", 51.5, -0.1),
-        ]

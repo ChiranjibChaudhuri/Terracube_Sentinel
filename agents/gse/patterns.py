@@ -32,7 +32,7 @@ class PatternDetector:
     """Detects complex patterns across events."""
 
     def __init__(self):
-        self._baselines: dict[str, float] = {}
+        pass
 
     def detect_all(self, events: list[GSEEvent], region_id: str | None = None) -> list[PatternMatch]:
         """Run all pattern detectors and return matches."""
@@ -132,7 +132,20 @@ class PatternDetector:
         current_rate = len(last_24h)
 
         patterns = []
-        if daily_baseline > 0 and current_rate > daily_baseline * 1.6:
+        if daily_baseline == 0 and current_rate > 0:
+            # New activity in a previously quiet region — infinite acceleration
+            patterns.append(PatternMatch(
+                pattern_type="temporal_acceleration",
+                description=f"New activity spike: {current_rate:.0f} events in last 24h "
+                            f"with zero prior baseline over 7 days",
+                severity="HIGH",
+                region_id=region_id or "GLOBAL",
+                categories=sorted(set(e.category for e in last_24h)),
+                event_ids=[e.event_id for e in last_24h[:20]],
+                confidence=min(1.0, current_rate / 10.0),
+                detected_at=now,
+            ))
+        elif daily_baseline > 0 and current_rate > daily_baseline * 1.6:
             increase_pct = ((current_rate - daily_baseline) / daily_baseline) * 100
             patterns.append(PatternMatch(
                 pattern_type="temporal_acceleration",

@@ -13,7 +13,11 @@ from gse.scoring import GSEScorer
 logger = logging.getLogger(__name__)
 
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
-FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN", "")
+FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
+
+
+def _foundry_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {FOUNDRY_TOKEN}"} if FOUNDRY_TOKEN else {}
 
 # Country metadata for intelligence profiles
 COUNTRY_DATA: dict[str, dict] = {
@@ -130,7 +134,7 @@ async def get_country_list() -> list[dict]:
 
 async def _fetch_financial(country_code: str) -> list[dict]:
     """Fetch financial indicators for a country."""
-    headers = {"Authorization": f"Bearer {FOUNDRY_TOKEN}"}
+    headers = _foundry_headers()
     try:
         async with httpx.AsyncClient(timeout=15.0, base_url=FOUNDRY_API_URL) as client:
             resp = await client.get(
@@ -152,7 +156,7 @@ async def _fetch_financial(country_code: str) -> list[dict]:
 
 async def _fetch_events_for_country(country_code: str) -> list[dict]:
     """Fetch active events for a country."""
-    headers = {"Authorization": f"Bearer {FOUNDRY_TOKEN}"}
+    headers = _foundry_headers()
     try:
         async with httpx.AsyncClient(timeout=15.0, base_url=FOUNDRY_API_URL) as client:
             resp = await client.get(

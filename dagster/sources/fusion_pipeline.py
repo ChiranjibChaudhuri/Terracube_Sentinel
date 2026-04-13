@@ -41,6 +41,7 @@ def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionCont
     """Load normalized GeoJSON features to Foundry API."""
     headers = {"Authorization": f"Bearer {FOUNDRY_TOKEN}", "Content-Type": "application/json"}
     loaded = 0
+    failed = 0
     with httpx.Client(timeout=30, base_url=FOUNDRY_API_URL) as client:
         for feat in features:
             entity_type = feat.properties.get("entityType", "Unknown")
@@ -57,10 +58,21 @@ def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionCont
                 resp = client.post("/objects", json=payload, headers=headers)
                 if resp.status_code < 300:
                     loaded += 1
+            except httpx.HTTPError as e:
+                logger.warning("Foundry load failed for %s: %s", entity_id, e)
+                failed += 1
             except Exception as e:
-                logger.debug("Foundry load failed for %s: %s", entity_id, e)
+                logger.warning("Foundry load failed for %s: %s", entity_id, e)
+                failed += 1
+    # Raise if majority of loads failed (indicates systemic API issue)
+    if features and failed > 0 and failed > len(features) / 2:
+        logger.error(
+            "Foundry API appears down: %d/%d loads failed", failed, len(features)
+        )
     if context:
         context.log.info(f"Loaded {loaded}/{len(features)} features to Foundry")
+        if failed > 0:
+            context.log.warning(f"Failed to load {failed}/{len(features)} features to Foundry")
     return loaded
 
 

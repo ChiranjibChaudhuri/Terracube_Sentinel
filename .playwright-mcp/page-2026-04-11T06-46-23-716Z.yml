@@ -1,0 +1,160 @@
+- generic [ref=e5]:
+  - complementary [ref=e6]:
+    - generic [ref=e7]:
+      - img [ref=e9]
+      - generic [ref=e12]:
+        - generic [ref=e13]: TerraCube
+        - generic [ref=e14]: Sentinel
+    - navigation "Main navigation" [ref=e15]:
+      - generic [ref=e16]:
+        - paragraph [ref=e17]: OVERVIEW
+        - link "Dashboard" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - img [ref=e19]
+          - generic [ref=e24]: Dashboard
+        - link "Map View" [active] [ref=e25] [cursor=pointer]:
+          - /url: /map
+          - img [ref=e26]
+          - generic [ref=e28]: Map View
+      - generic [ref=e29]:
+        - paragraph [ref=e30]: ANALYSIS
+        - link "Country Intel" [ref=e31] [cursor=pointer]:
+          - /url: /country
+          - img [ref=e32]
+          - generic [ref=e35]: Country Intel
+        - link "Briefings" [ref=e36] [cursor=pointer]:
+          - /url: /briefing
+          - img [ref=e37]
+          - generic [ref=e40]: Briefings
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: DATA PLATFORM
+        - link "Object Explorer" [ref=e43] [cursor=pointer]:
+          - /url: /objects
+          - img [ref=e44]
+          - generic [ref=e48]: Object Explorer
+        - link "Pipelines" [ref=e49] [cursor=pointer]:
+          - /url: /pipelines
+          - img [ref=e50]
+          - generic [ref=e54]: Pipelines
+        - link "Ontology" [ref=e55] [cursor=pointer]:
+          - /url: /ontology
+          - img [ref=e56]
+          - generic [ref=e62]: Ontology
+      - generic [ref=e63]:
+        - paragraph [ref=e64]: SYSTEM
+        - link "Settings" [ref=e65] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e66]
+          - generic [ref=e69]: Settings
+    - button "Collapse sidebar" [ref=e71]:
+      - img [ref=e72]
+      - generic [ref=e74]: Collapse
+  - generic [ref=e75]:
+    - banner [ref=e76]:
+      - generic [ref=e78]:
+        - generic [ref=e79]: Sentinel
+        - img [ref=e80]
+        - generic [ref=e82]: Map View
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - img [ref=e85]
+          - generic [ref=e91]: LIVE
+        - button "Notifications" [ref=e92]:
+          - img [ref=e93]
+        - generic [ref=e97]: OP
+    - main [ref=e98]:
+      - generic [ref=e1193]:
+        - generic [ref=e1194]:
+          - button "2D Map" [ref=e1195]:
+            - img [ref=e1196]
+            - text: 2D Map
+          - button "3D Globe" [ref=e1198]:
+            - img [ref=e1199]
+            - text: 3D Globe
+        - generic [ref=e1202]:
+          - heading "Data Layers" [level=4] [ref=e1203]
+          - generic [ref=e1204]:
+            - button "Hazard Events 10" [ref=e1205]:
+              - generic [ref=e1207]: Hazard Events
+              - generic [ref=e1208]: "10"
+              - img [ref=e1209]
+            - button "Sensors 7" [ref=e1212]:
+              - generic [ref=e1214]: Sensors
+              - generic [ref=e1215]: "7"
+              - img [ref=e1216]
+            - button "Infrastructure 8" [ref=e1219]:
+              - generic [ref=e1221]: Infrastructure
+              - generic [ref=e1222]: "8"
+              - img [ref=e1223]
+            - button "Aircraft 5" [ref=e1226]:
+              - generic [ref=e1228]: Aircraft
+              - generic [ref=e1229]: "5"
+              - img [ref=e1230]
+            - button "Vessels 4" [ref=e1233]:
+              - generic [ref=e1235]: Vessels
+              - generic [ref=e1236]: "4"
+              - img [ref=e1237]
+            - button "GSE Threat Zones 8" [ref=e1240]:
+              - generic [ref=e1242]: GSE Threat Zones
+              - generic [ref=e1243]: "8"
+              - img [ref=e1244]
+        - generic [ref=e1247]:
+          - button [ref=e1248]:
+            - img [ref=e1249]
+          - button [ref=e1251]:
+            - img [ref=e1252]
+          - button [ref=e1254]:
+            - img [ref=e1255]
+          - generic [ref=e1257]:
+            - slider [ref=e1258]: "0"
+            - generic [ref=e1259]:
+              - generic [ref=e1260]: Now
+              - generic [ref=e1261]: "-6h"
+              - generic [ref=e1262]: "-12h"
+              - generic [ref=e1263]: "-18h"
+              - generic [ref=e1264]: "-24h"
+              - generic [ref=e1265]: "-36h"
+              - generic [ref=e1266]: "-48h"
+        - generic [ref=e1267]:
+          - generic:
+            - generic:
+              - img
+            - generic:
+              - button "Marker" [ref=e1286] [cursor=pointer]
+              - button "Marker" [ref=e1287] [cursor=pointer]
+              - button "Marker" [ref=e1288] [cursor=pointer]
+              - button "Marker" [ref=e1289] [cursor=pointer]
+              - button "Marker" [ref=e1290] [cursor=pointer]
+              - button "Marker" [ref=e1291] [cursor=pointer]
+              - button "Marker" [ref=e1292] [cursor=pointer]
+              - button "Marker" [ref=e1293] [cursor=pointer]
+              - button "Marker" [ref=e1294] [cursor=pointer]
+              - button "Marker" [ref=e1295] [cursor=pointer]
+              - button "Marker" [ref=e1296] [cursor=pointer]
+              - button "Marker" [ref=e1297] [cursor=pointer]
+              - button "Marker" [ref=e1298] [cursor=pointer]
+              - button "Marker" [ref=e1299] [cursor=pointer]
+              - button "Marker" [ref=e1300] [cursor=pointer]
+              - button "Marker" [ref=e1301] [cursor=pointer]
+              - button "Marker" [ref=e1302] [cursor=pointer]
+              - button "Marker" [ref=e1303] [cursor=pointer]
+              - button "Marker" [ref=e1304] [cursor=pointer]
+              - button "Marker" [ref=e1305] [cursor=pointer]
+              - button "Marker" [ref=e1306] [cursor=pointer]
+              - button "Marker" [ref=e1307] [cursor=pointer]
+              - button "Marker" [ref=e1308] [cursor=pointer]
+          - generic:
+            - generic [ref=e1309]:
+              - button "Zoom in" [ref=e1310] [cursor=pointer]: +
+              - button "Zoom out" [ref=e1311] [cursor=pointer]: −
+            - generic [ref=e1312]:
+              - link "Leaflet" [ref=e1313] [cursor=pointer]:
+                - /url: https://leafletjs.com
+                - img [ref=e1314]
+                - text: Leaflet
+              - text: "| ©"
+              - link "OpenStreetMap" [ref=e1318] [cursor=pointer]:
+                - /url: https://www.openstreetmap.org/copyright
+    - contentinfo [ref=e1189]:
+      - generic [ref=e1190]: TerraCube Sentinel v0.1.0
+      - generic [ref=e1191]: Open Foundry Ontology | Dagster Pipelines | GLM-5 AI

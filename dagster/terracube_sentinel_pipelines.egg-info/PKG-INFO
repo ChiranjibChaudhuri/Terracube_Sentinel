@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: terracube-sentinel-pipelines
+Version: 0.1.0
+Summary: Dagster pipelines for TerraCube Sentinel geo-hazard monitoring
+Requires-Python: >=3.11
+Requires-Dist: dagster<2.0,>=1.9
+Requires-Dist: dagster-webserver<2.0,>=1.9
+Requires-Dist: dagster-postgres<1.0,>=0.25
+Requires-Dist: httpx<1.0,>=0.27
+Requires-Dist: shapely<3.0,>=2.0
+Requires-Dist: pystac<2.0,>=1.11
+Requires-Dist: pystac-client<1.0,>=0.8
+Requires-Dist: requests<3.0,>=2.32
+Requires-Dist: boto3<2.0,>=1.35
+Requires-Dist: redis<6.0,>=5.0
+Requires-Dist: pydantic<3.0,>=2.0
+Provides-Extra: dev
+Requires-Dist: dagster-webserver<2.0,>=1.9; extra == "dev"
+Requires-Dist: pytest>=8.0; extra == "dev"

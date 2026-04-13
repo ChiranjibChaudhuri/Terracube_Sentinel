@@ -30,6 +30,9 @@ ENTITY_TTL: dict[str, int] = {
 
 DEFAULT_TTL = 300
 
+# Maximum SCAN iterations to prevent infinite loops
+MAX_SCAN_ITERATIONS = 1000
+
 
 class FusionCache:
     """Redis-backed cache with per-entity TTL."""
@@ -83,14 +86,17 @@ class FusionCache:
         if client is None:
             return []
         try:
-            # Use SCAN instead of KEYS to avoid blocking Redis
             pattern = f"fusion:{entity_type}:*"
             keys: list[str] = []
             cursor = 0
+            iterations = 0
             while True:
                 cursor, batch = client.scan(cursor, match=pattern, count=100)
                 keys.extend(batch)
-                if cursor == 0:
+                iterations += 1
+                if cursor == 0 or iterations >= MAX_SCAN_ITERATIONS:
+                    if iterations >= MAX_SCAN_ITERATIONS:
+                        logger.warning("SCAN iteration limit reached for pattern %s (%d keys found)", pattern, len(keys))
                     break
             if not keys:
                 return []
@@ -104,14 +110,17 @@ class FusionCache:
         if client is None:
             return 0
         try:
-            # Use SCAN instead of KEYS to avoid blocking Redis
             pattern = f"fusion:{entity_type}:*"
             keys: list[str] = []
             cursor = 0
+            iterations = 0
             while True:
                 cursor, batch = client.scan(cursor, match=pattern, count=100)
                 keys.extend(batch)
-                if cursor == 0:
+                iterations += 1
+                if cursor == 0 or iterations >= MAX_SCAN_ITERATIONS:
+                    if iterations >= MAX_SCAN_ITERATIONS:
+                        logger.warning("SCAN iteration limit reached for flush pattern %s", pattern)
                     break
             if keys:
                 return client.delete(*keys)

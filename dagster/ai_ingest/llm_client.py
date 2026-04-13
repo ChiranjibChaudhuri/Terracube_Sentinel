@@ -76,14 +76,18 @@ class LLMClient:
                         headers=headers,
                     )
                     self._available = resp.status_code == 200
-        except Exception:
+        except Exception as exc:
             self._available = False
+            logger.error("LLM probe failed: %s — %s", self._settings.base_url, exc)
 
         self._available_checked_at = now
         if self._available:
             logger.info("LLM backend is available: %s (%s)", self._settings.backend, self._settings.model)
         else:
-            logger.warning("LLM backend unavailable: %s — will retry in %ds", self._settings.base_url, self.AVAILABILITY_TTL)
+            logger.error(
+                "LLM backend unavailable: %s — AI features disabled, will retry in %ds",
+                self._settings.base_url, self.AVAILABILITY_TTL,
+            )
         return self._available
 
     # ── core methods ──────────────────────────────────────────────────

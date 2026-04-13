@@ -198,6 +198,8 @@ def _build_tfidf(documents: list[list[str]]) -> list[dict[str, float]]:
         n_terms = len(doc) or 1
         vec: dict[str, float] = {}
         for term, count in tf.items():
+            # Smoothed IDF variant: the +1 outside the log ensures IDF >= 1
+            # so that terms present in every document still contribute to vectors.
             idf = math.log((n_docs + 1) / (df[term] + 1)) + 1
             vec[term] = (count / n_terms) * idf
         vectors.append(vec)

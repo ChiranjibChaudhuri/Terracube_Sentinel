@@ -1,6 +1,8 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 export type WebSocketStatus = 'connecting' | 'open' | 'closed' | 'error'
+
+const MAX_RECONNECT_ATTEMPTS = 10
 
 interface UseWebSocketOptions<TMessage> {
   enabled?: boolean
@@ -29,10 +31,14 @@ export function useWebSocket<TMessage = string>(
   const heartbeatTimerRef = useRef<number | null>(null)
   const reconnectAttemptRef = useRef(0)
 
-  const handleMessage = useEffectEvent((message: TMessage) => {
+  // Stable ref for onMessage to avoid re-triggering the effect
+  const onMessageRef = useRef(onMessage)
+  onMessageRef.current = onMessage
+
+  const handleMessage = useCallback((message: TMessage) => {
     setLastMessage(message)
-    onMessage?.(message)
-  })
+    onMessageRef.current?.(message)
+  }, [])
 
   useEffect(() => {
     if (!enabled) {
@@ -55,6 +61,10 @@ export function useWebSocket<TMessage = string>(
 
     const scheduleReconnect = () => {
       if (isDisposed) return
+      if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+        setStatus('error')
+        return
+      }
       const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, maxReconnectDelayMs)
       reconnectAttemptRef.current += 1
       reconnectTimerRef.current = window.setTimeout(connect, delay)
@@ -103,7 +113,9 @@ export function useWebSocket<TMessage = string>(
       socketRef.current?.close()
       socketRef.current = null
     }
-  }, [enabled, heartbeatIntervalMs, heartbeatMessage, maxReconnectDelayMs, parseMessage, url, handleMessage])
+  // handleMessage is stable (empty deps useCallback), so omit from deps to avoid confusion
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, heartbeatIntervalMs, heartbeatMessage, maxReconnectDelayMs, parseMessage, url])
 
   return {
     status,

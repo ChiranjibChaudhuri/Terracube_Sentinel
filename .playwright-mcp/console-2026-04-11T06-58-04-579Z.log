@@ -1,0 +1,28 @@
+[     354ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:5173/api/v1/objects?objectType=PipelineExecution&pageSize=100:0
+[     358ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-B7lzCZeo.js:0
+[     365ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-B7lzCZeo.js:0
+[     370ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'available')
+    at rt (http://localhost:5173/assets/Dashboard-B7lzCZeo.js:1:24066)
+    at Oo (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:47538)
+    at yc (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:69970)
+    at Ic (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:80231)
+    at Mu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:115529)
+    at ku (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114613)
+    at Ou (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114452)
+    at gu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:111324)
+    at cd (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:122814)
+    at MessagePort.ie (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:1:1647) @ http://localhost:5173/assets/react-vendor-o9hA0pGM.js:7
+[     370ms] [ERROR] ErrorBoundary caught: TypeError: Cannot read properties of undefined (reading 'available')
+    at rt (http://localhost:5173/assets/Dashboard-B7lzCZeo.js:1:24066)
+    at Oo (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:47538)
+    at yc (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:69970)
+    at Ic (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:80231)
+    at Mu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:115529)
+    at ku (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114613)
+    at Ou (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:114452)
+    at gu (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:111324)
+    at cd (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:8:122814)
+    at MessagePort.ie (http://localhost:5173/assets/react-vendor-o9hA0pGM.js:1:1647) {componentStack: 
+    at rt (http://localhost:5173/assets/Dashboard…ndex-Exb4ImyU.js:2:13704)
+    at we (<anonymous>)} @ http://localhost:5173/assets/index-Exb4ImyU.js:1
+[     371ms] [WARNING] WebSocket connection to 'ws://localhost:5173/ws/alerts' failed: WebSocket is closed before the connection is established. @ http://localhost:5173/assets/Dashboard-B7lzCZeo.js:0

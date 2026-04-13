@@ -84,6 +84,8 @@ class GlobalStabilityEngine:
     def __init__(self, recency_half_life_hours: float = 24.0):
         self.recency_half_life = recency_half_life_hours
         self._history: dict[str, list[tuple[datetime, float]]] = {}
+        import threading
+        self._history_lock = threading.Lock()
 
     def compute_gse(
         self,
@@ -136,26 +138,40 @@ class GlobalStabilityEngine:
                 weight=weight,
             ))
 
-        # Normalize to 0-200 range (can exceed 100 in extreme conditions)
+        # Normalize to 0-200 range (can exceed 100 in extreme conditions).
+        # The ×10 multiplier scales the raw sum (expected max ~20 for a region
+        # with 5-6 active high-severity categories at peak recency) to a
+        # human-readable 0-200 scale.
         gse_score = min(200.0, total_gse * 10)
 
-        # Check for escalation
+        # Check for escalation and update history (thread-safe)
         escalation = False
         prev_score = None
-        if region_id in self._history and self._history[region_id]:
-            recent = [
-                (t, s) for t, s in self._history[region_id]
-                if t >= now - timedelta(hours=1)
-            ]
-            if recent:
-                prev_score = recent[0][1]
-                if gse_score - prev_score > ESCALATION_THRESHOLD:
-                    escalation = True
+        with self._history_lock:
+            if region_id in self._history and self._history[region_id]:
+                recent = [
+                    (t, s) for t, s in self._history[region_id]
+                    if t >= now - timedelta(hours=1)
+                ]
+                if recent:
+                    prev_score = recent[0][1]
+                    if gse_score - prev_score > ESCALATION_THRESHOLD:
+                        escalation = True
 
-        # Record history
-        self._history.setdefault(region_id, []).append((now, gse_score))
-        # Keep last 720 entries (~30 days at hourly)
-        self._history[region_id] = self._history[region_id][-720:]
+            # Record history
+            self._history.setdefault(region_id, []).append((now, gse_score))
+            # Keep last 720 entries (~30 days at hourly)
+            self._history[region_id] = self._history[region_id][-720:]
+
+            # Evict stale regions to bound memory (keep most recently active)
+            MAX_REGIONS = 1000
+            if len(self._history) > MAX_REGIONS:
+                sorted_regions = sorted(
+                    self._history.items(),
+                    key=lambda kv: kv[1][-1][0] if kv[1] else datetime.min.replace(tzinfo=timezone.utc),
+                )
+                for rid, _ in sorted_regions[:len(self._history) - MAX_REGIONS]:
+                    del self._history[rid]
 
         # Sort factors by pressure descending
         factors.sort(key=lambda f: f.pressure * f.weight, reverse=True)
@@ -178,12 +194,13 @@ class GlobalStabilityEngine:
         age_hours = (now - event_time).total_seconds() / 3600.0
         if age_hours <= 0:
             return 1.0
-        return math.exp(-0.693 * age_hours / self.recency_half_life)
+        return math.exp(-math.log(2) * age_hours / self.recency_half_life)
 
     def get_history(self, region_id: str, days: int = 30) -> list[dict]:
         """Get GSE score history for a region."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        entries = self._history.get(region_id, [])
+        with self._history_lock:
+            entries = list(self._history.get(region_id, []))
         return [
             {"timestamp": t.isoformat(), "gse_score": s}
             for t, s in entries if t >= cutoff
