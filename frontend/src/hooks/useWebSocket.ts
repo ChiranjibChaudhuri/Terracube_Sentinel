@@ -33,7 +33,10 @@ export function useWebSocket<TMessage = string>(
 
   // Stable ref for onMessage to avoid re-triggering the effect
   const onMessageRef = useRef(onMessage)
-  onMessageRef.current = onMessage
+
+  useEffect(() => {
+    onMessageRef.current = onMessage
+  }, [onMessage])
 
   const handleMessage = useCallback((message: TMessage) => {
     setLastMessage(message)
@@ -42,7 +45,6 @@ export function useWebSocket<TMessage = string>(
 
   useEffect(() => {
     if (!enabled) {
-      setStatus('closed')
       return
     }
 
@@ -113,14 +115,14 @@ export function useWebSocket<TMessage = string>(
       socketRef.current?.close()
       socketRef.current = null
     }
-  // handleMessage is stable (empty deps useCallback), so omit from deps to avoid confusion
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, heartbeatIntervalMs, heartbeatMessage, maxReconnectDelayMs, parseMessage, url])
+  }, [enabled, handleMessage, heartbeatIntervalMs, heartbeatMessage, maxReconnectDelayMs, parseMessage, url])
+
+  const effectiveStatus = enabled ? status : 'closed'
 
   return {
-    status,
+    status: effectiveStatus,
     lastMessage,
-    isConnected: status === 'open',
+    isConnected: effectiveStatus === 'open',
   }
 }
 

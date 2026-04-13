@@ -91,14 +91,6 @@ export async function fetchObjectCollection<T = Record<string, unknown>>(
   }
 }
 
-export async function fetchObject(objectId: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`${API_URL}/objects/${objectId}`)
-  if (!res.ok) {
-    throw new Error(`Fetch object failed: ${res.status} ${res.statusText}`)
-  }
-  return res.json()
-}
-
 export async function fetchLinks<T = LinkRecord>(
   filters?: Record<string, unknown>,
   signal?: AbortSignal,
