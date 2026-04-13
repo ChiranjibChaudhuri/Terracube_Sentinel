@@ -9,6 +9,7 @@ requests<3.0,>=2.32
 boto3<2.0,>=1.35
 redis<6.0,>=5.0
 pydantic<3.0,>=2.0
+websockets<17.0,>=12.0
 
 [dev]
 dagster-webserver<2.0,>=1.9

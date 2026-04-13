@@ -5,8 +5,6 @@ and loads normalized data into the ontology via Foundry API.
 
 import os
 import logging
-from dataclasses import dataclass, asdict
-from datetime import datetime
 
 import httpx
 from dagster import (
@@ -20,7 +18,9 @@ from dagster import (
 from .base_adapter import GeoJSONFeature
 from .cache import FusionCache
 from .opensky_adapter import OpenSkyAdapter
-from .ais_adapter import AISAdapter
+from .ais_adapter import MultiSourceAISAdapter
+from .aisstream_adapter import AISStreamAdapter
+from .gfw_adapter import GlobalFishingWatchAdapter
 from .firms_adapter import FIRMSAdapter
 from .celestrak_adapter import CelesTrakAdapter
 from .eq_adapter import EarthquakeAdapter
@@ -32,14 +32,21 @@ from .infrastructure_adapter import InfrastructureDataAdapter
 logger = logging.getLogger(__name__)
 
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
-FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN", "")
+FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
 
 cache = FusionCache()
+
+VESSEL_SOURCE_TTLS = {
+    "aisstream": 120,
+    "gfw": 3600,
+}
 
 
 def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionContext | None = None):
     """Load normalized GeoJSON features to Foundry API."""
-    headers = {"Authorization": f"Bearer {FOUNDRY_TOKEN}", "Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json"}
+    if FOUNDRY_TOKEN:
+        headers["Authorization"] = f"Bearer {FOUNDRY_TOKEN}"
     loaded = 0
     failed = 0
     with httpx.Client(timeout=30, base_url=FOUNDRY_API_URL) as client:
@@ -47,7 +54,7 @@ def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionCont
             entity_type = feat.properties.get("entityType", "Unknown")
             entity_id = _make_id(feat)
             # Cache first
-            cache.set(entity_type, entity_id, feat.to_dict())
+            cache.set(entity_type, entity_id, feat.to_dict(), ttl=_cache_ttl_for_feature(feat))
             # Then load to Foundry
             payload = {
                 "objectType": entity_type,
@@ -76,6 +83,13 @@ def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionCont
     return loaded
 
 
+def _cache_ttl_for_feature(feat: GeoJSONFeature) -> int | None:
+    """Return source-specific cache TTLs where needed."""
+    if feat.properties.get("entityType") == "Vessel":
+        return VESSEL_SOURCE_TTLS.get(str(feat.properties.get("source", "")).lower())
+    return None
+
+
 def _make_id(feat: GeoJSONFeature) -> str:
     """Generate a stable ID from feature properties."""
     props = feat.properties
@@ -83,7 +97,7 @@ def _make_id(feat: GeoJSONFeature) -> str:
     if et == "Aircraft":
         return f"aircraft-{props.get('icao24', '')}"
     elif et == "Vessel":
-        return f"vessel-{props.get('mmsi', '')}"
+        return f"vessel-{props.get('mmsi') or props.get('vesselId', '')}"
     elif et == "HazardEvent":
         return f"hazard-{props.get('source', '')}-{props.get('timestamp', '')}-{feat.geometry.get('coordinates', [0, 0])}"
     elif et == "SatellitePass":
@@ -114,11 +128,37 @@ def fetch_aircraft_positions(context: AssetExecutionContext) -> list[dict]:
 
 @asset(group_name="data_fusion")
 def fetch_vessel_positions(context: AssetExecutionContext) -> list[dict]:
-    """Fetch real-time vessel positions from AIS feeds."""
-    adapter = AISAdapter()
+    """Fetch real-time vessel positions from all configured AIS feeds."""
+    adapter = MultiSourceAISAdapter()
     try:
         features = adapter.fetch_and_normalize()
         context.log.info(f"Fetched {len(features)} vessel positions")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
+
+
+@asset(group_name="data_fusion")
+def fetch_aisstream_vessels(context: AssetExecutionContext) -> list[dict]:
+    """Fetch real-time vessel positions from aisstream.io."""
+    adapter = AISStreamAdapter()
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} aisstream vessel positions")
+        _load_to_foundry(features, context)
+        return [f.to_dict() for f in features]
+    finally:
+        adapter.close()
+
+
+@asset(group_name="data_fusion")
+def fetch_gfw_vessels(context: AssetExecutionContext) -> list[dict]:
+    """Fetch recent historical vessel positions from Global Fishing Watch."""
+    adapter = GlobalFishingWatchAdapter()
+    try:
+        features = adapter.fetch_and_normalize()
+        context.log.info(f"Fetched {len(features)} GFW vessel positions")
         _load_to_foundry(features, context)
         return [f.to_dict() for f in features]
     finally:
@@ -234,6 +274,18 @@ def data_fusion_job():
     fetch_infrastructure_data()
 
 
+@job
+def aisstream_vessel_job():
+    """Run the aisstream.io vessel snapshot asset."""
+    fetch_aisstream_vessels()
+
+
+@job
+def gfw_vessel_job():
+    """Run the Global Fishing Watch vessel asset."""
+    fetch_gfw_vessels()
+
+
 # ── Schedule ───────────────────────────────────────────────────────
 
 @schedule(
@@ -243,4 +295,24 @@ def data_fusion_job():
 )
 def data_fusion_schedule(_context):
     """Run data fusion pipeline every 5 minutes."""
+    return {}
+
+
+@schedule(
+    job=aisstream_vessel_job,
+    cron_schedule="*/2 * * * *",
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+def aisstream_vessel_schedule(_context):
+    """Run aisstream vessel snapshots every 2 minutes."""
+    return {}
+
+
+@schedule(
+    job=gfw_vessel_job,
+    cron_schedule="*/15 * * * *",
+    default_status=DefaultScheduleStatus.STOPPED,
+)
+def gfw_vessel_schedule(_context):
+    """Run GFW vessel snapshots every 15 minutes."""
     return {}

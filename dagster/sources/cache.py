@@ -67,11 +67,11 @@ class FusionCache:
         except Exception:
             return None
 
-    def set(self, entity_type: str, entity_id: str, data: dict) -> None:
+    def set(self, entity_type: str, entity_id: str, data: dict, ttl: int | None = None) -> None:
         client = self._get_client()
         if client is None:
             return
-        ttl = ENTITY_TTL.get(entity_type, DEFAULT_TTL)
+        ttl = ttl or ENTITY_TTL.get(entity_type, DEFAULT_TTL)
         try:
             client.setex(
                 self._key(entity_type, entity_id),

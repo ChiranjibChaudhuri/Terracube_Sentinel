@@ -58,8 +58,14 @@ from .risk_scoring import (
 from sources.fusion_pipeline import (
     data_fusion_job,
     data_fusion_schedule,
+    aisstream_vessel_job,
+    aisstream_vessel_schedule,
+    gfw_vessel_job,
+    gfw_vessel_schedule,
     fetch_aircraft_positions,
     fetch_vessel_positions,
+    fetch_aisstream_vessels,
+    fetch_gfw_vessels,
     fetch_enhanced_fires,
     fetch_satellite_positions,
     fetch_enhanced_earthquakes,
@@ -177,6 +183,8 @@ defs = Definitions(
         # data_fusion
         fetch_aircraft_positions,
         fetch_vessel_positions,
+        fetch_aisstream_vessels,
+        fetch_gfw_vessels,
         fetch_enhanced_fires,
         fetch_satellite_positions,
         fetch_enhanced_earthquakes,
@@ -204,6 +212,8 @@ defs = Definitions(
         social_signals_job,
         risk_scoring_job,
         data_fusion_job,
+        aisstream_vessel_job,
+        gfw_vessel_job,
         ai_ingestion_job,
     ],
     schedules=[
@@ -215,6 +225,8 @@ defs = Definitions(
         social_signals_schedule,
         risk_scoring_schedule,
         data_fusion_schedule,
+        aisstream_vessel_schedule,
+        gfw_vessel_schedule,
         ai_ingestion_schedule,
     ],
 )

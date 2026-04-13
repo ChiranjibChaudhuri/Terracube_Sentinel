@@ -5,7 +5,9 @@ Each adapter implements BaseAdapter for unified fetch/normalize/cache lifecycle.
 
 from .base_adapter import BaseAdapter
 from .opensky_adapter import OpenSkyAdapter
-from .ais_adapter import AISAdapter
+from .ais_adapter import AISAdapter, MultiSourceAISAdapter
+from .aisstream_adapter import AISStreamAdapter
+from .gfw_adapter import GlobalFishingWatchAdapter
 from .firms_adapter import FIRMSAdapter
 from .celestrak_adapter import CelesTrakAdapter
 from .eq_adapter import EarthquakeAdapter
@@ -16,7 +18,10 @@ from .infrastructure_adapter import InfrastructureDataAdapter
 
 SOURCE_REGISTRY: dict[str, type[BaseAdapter]] = {
     "opensky": OpenSkyAdapter,
-    "ais": AISAdapter,
+    "ais": MultiSourceAISAdapter,
+    "aishub": AISAdapter,
+    "aisstream": AISStreamAdapter,
+    "gfw": GlobalFishingWatchAdapter,
     "firms": FIRMSAdapter,
     "celestrak": CelesTrakAdapter,
     "earthquake": EarthquakeAdapter,
@@ -31,6 +36,9 @@ __all__ = [
     "SOURCE_REGISTRY",
     "OpenSkyAdapter",
     "AISAdapter",
+    "MultiSourceAISAdapter",
+    "AISStreamAdapter",
+    "GlobalFishingWatchAdapter",
     "FIRMSAdapter",
     "CelesTrakAdapter",
     "EarthquakeAdapter",

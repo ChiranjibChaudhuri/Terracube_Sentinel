@@ -3,11 +3,13 @@ AIS vessel tracking adapter.
 Fetches vessel positions from public AIS data feeds.
 """
 
-from dataclasses import dataclass
-from .base_adapter import BaseAdapter, GeoJSONFeature
 import os
-import httpx
 import logging
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+from .base_adapter import BaseAdapter, GeoJSONFeature
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +42,12 @@ SHIP_TYPE_MAP = {
 }
 
 
-def classify_ship_type(type_code: int | None) -> str:
+def classify_ship_type(type_code: int | str | None) -> str:
     if type_code is None:
+        return "OTHER"
+    try:
+        type_code = int(type_code)
+    except (TypeError, ValueError):
         return "OTHER"
     for rng, label in SHIP_TYPE_MAP.items():
         if type_code in rng:
@@ -53,14 +59,21 @@ class AISAdapter(BaseAdapter):
     source_name = "ais"
     entity_type = "Vessel"
 
+    def __init__(self, use_synthetic_fallback: bool = True):
+        super().__init__()
+        self.use_synthetic_fallback = use_synthetic_fallback
+
     def get_ttl(self) -> int:
         return 900
 
     def fetch(self, bbox: tuple[float, float, float, float] | None = None, **kwargs) -> list[dict]:
         """Fetch vessel positions. Degrades gracefully if no API key."""
         if not AIS_API_KEY:
-            logger.info("AIS_API_KEY not set — returning synthetic vessel data")
-            return self._synthetic_data()
+            if self.use_synthetic_fallback:
+                logger.info("AIS_API_KEY not set — returning synthetic vessel data")
+                return self._synthetic_data()
+            logger.info("AIS_API_KEY not set — skipping AISHub source")
+            return []
         client = self._get_client(timeout=30.0)
         params = {"username": AIS_API_KEY, "format": "1", "output": "json", "compress": "0"}
         if bbox:
@@ -91,23 +104,197 @@ class AISAdapter(BaseAdapter):
     def normalize(self, raw_records: list[dict]) -> list[GeoJSONFeature]:
         features = []
         for rec in raw_records:
-            lng = rec.get("LONGITUDE") or rec.get("longitude")
-            lat = rec.get("LATITUDE") or rec.get("latitude")
+            lng = _as_float(_first(rec, "LONGITUDE", "longitude", "lon", "lng"))
+            lat = _as_float(_first(rec, "LATITUDE", "latitude", "lat"))
             if lng is None or lat is None:
+                logger.debug("Skipping AIS record without valid coordinates: %s", rec)
                 continue
             features.append(GeoJSONFeature(
-                geometry={"type": "Point", "coordinates": [float(lng), float(lat)]},
+                geometry={"type": "Point", "coordinates": [lng, lat]},
                 properties={
                     "entityType": "Vessel",
-                    "mmsi": str(rec.get("MMSI", rec.get("mmsi", ""))),
-                    "name": rec.get("NAME", rec.get("name")),
-                    "imo": rec.get("IMO", rec.get("imo")),
-                    "shipType": classify_ship_type(rec.get("SHIPTYPE", rec.get("ship_type"))),
-                    "speed": rec.get("SPEED", rec.get("speed")),
-                    "course": rec.get("COURSE", rec.get("course")),
-                    "destination": rec.get("DESTINATION", rec.get("destination")),
-                    "source": "ais",
-                    "timestamp": rec.get("TIMESTAMP", rec.get("timestamp")),
+                    "mmsi": str(_first(rec, "MMSI", "mmsi") or ""),
+                    "name": _first(rec, "NAME", "name"),
+                    "imo": _first(rec, "IMO", "imo"),
+                    "shipType": classify_ship_type(_first(rec, "SHIPTYPE", "ship_type", "shipType")),
+                    "speed": _as_float(_first(rec, "SPEED", "speed")),
+                    "course": _as_float(_first(rec, "COURSE", "course")),
+                    "heading": _as_float(_first(rec, "HEADING", "heading")),
+                    "destination": _first(rec, "DESTINATION", "destination"),
+                    "flag": _first(rec, "FLAG", "flag"),
+                    "navStatus": _first(rec, "NAVSTATUS", "NAV_STATUS", "navStatus"),
+                    "isFishing": classify_ship_type(_first(rec, "SHIPTYPE", "ship_type", "shipType")) == "FISHING",
+                    "source": _first(rec, "source", "SOURCE") or "ais",
+                    "timestamp": _first(rec, "TIMESTAMP", "timestamp"),
                 },
             ))
         return features
+
+
+class MultiSourceAISAdapter(BaseAdapter):
+    """Unified AIS adapter that merges AISHub, aisstream.io, and GFW results."""
+
+    source_name = "ais_multi"
+    entity_type = "Vessel"
+
+    def __init__(
+        self,
+        sources: list[str] | None = None,
+        use_synthetic_fallback: bool = True,
+    ):
+        super().__init__()
+        configured = sources or _configured_sources()
+        self.sources = [source.strip().lower() for source in configured if source.strip()]
+        self.use_synthetic_fallback = use_synthetic_fallback
+
+    def get_ttl(self) -> int:
+        return 120
+
+    def fetch(self, **kwargs) -> list[dict]:
+        return [feature.to_dict() for feature in self.fetch_and_normalize(**kwargs)]
+
+    def normalize(self, raw_records: list[dict]) -> list[GeoJSONFeature]:
+        features = []
+        for record in raw_records:
+            if isinstance(record, GeoJSONFeature):
+                features.append(record)
+                continue
+            if record.get("type") == "Feature":
+                features.append(GeoJSONFeature(
+                    geometry=record.get("geometry") or {},
+                    properties=record.get("properties") or {},
+                ))
+        return features
+
+    def fetch_and_normalize(self, **kwargs) -> list[GeoJSONFeature]:
+        features: list[GeoJSONFeature] = []
+        source_fetchers = {
+            "ais": self.fetch_aishub,
+            "aishub": self.fetch_aishub,
+            "aisstream": self.fetch_aisstream,
+            "gfw": self.fetch_gfw,
+        }
+
+        for source_name in self.sources:
+            fetcher = source_fetchers.get(source_name)
+            if fetcher is None:
+                logger.warning("Unknown AIS source %s — skipping", source_name)
+                continue
+            try:
+                source_features = fetcher(**kwargs)
+                logger.info("Fetched %d AIS features from %s", len(source_features), source_name)
+                features.extend(source_features)
+            except Exception as exc:
+                logger.warning("%s AIS source failed: %s", source_name, exc)
+
+        deduped = self._dedupe_by_mmsi(features)
+        if deduped:
+            return deduped
+
+        if self.use_synthetic_fallback:
+            logger.info("No configured AIS source returned data — using synthetic vessel data")
+            adapter = AISAdapter(use_synthetic_fallback=True)
+            try:
+                return adapter.normalize(adapter._synthetic_data())
+            finally:
+                adapter.close()
+        return []
+
+    def fetch_aishub(self, **kwargs) -> list[GeoJSONFeature]:
+        adapter = AISAdapter(use_synthetic_fallback=False)
+        try:
+            return adapter.fetch_and_normalize(**kwargs)
+        finally:
+            adapter.close()
+
+    def fetch_aisstream(self, **kwargs) -> list[GeoJSONFeature]:
+        from .aisstream_adapter import AISStreamAdapter
+
+        adapter = AISStreamAdapter(use_synthetic_fallback=False)
+        try:
+            return adapter.fetch_and_normalize(**kwargs)
+        finally:
+            adapter.close()
+
+    def fetch_gfw(self, **kwargs) -> list[GeoJSONFeature]:
+        from .gfw_adapter import GlobalFishingWatchAdapter
+
+        adapter = GlobalFishingWatchAdapter()
+        try:
+            return adapter.fetch_and_normalize(**kwargs)
+        finally:
+            adapter.close()
+
+    @staticmethod
+    def _dedupe_by_mmsi(features: list[GeoJSONFeature]) -> list[GeoJSONFeature]:
+        deduped: dict[str, GeoJSONFeature] = {}
+        for feature in features:
+            props = feature.properties
+            mmsi = str(props.get("mmsi") or "").strip()
+            if not mmsi:
+                coordinates = feature.geometry.get("coordinates", [])
+                key = f"{props.get('source', 'unknown')}:{coordinates}:{props.get('timestamp', '')}"
+            else:
+                key = mmsi
+
+            existing = deduped.get(key)
+            if existing is None:
+                deduped[key] = feature
+                continue
+
+            if _timestamp_sort_value(feature.properties.get("timestamp")) >= _timestamp_sort_value(existing.properties.get("timestamp")):
+                _fill_missing_properties(feature.properties, existing.properties)
+                deduped[key] = feature
+            else:
+                _fill_missing_properties(existing.properties, feature.properties)
+
+        return list(deduped.values())
+
+
+def _configured_sources() -> list[str]:
+    raw = os.getenv("AIS_SOURCES", "aishub,aisstream,gfw")
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _first(mapping: dict, *keys: str) -> Any:
+    for key in keys:
+        value = mapping.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed else None
+
+
+def _fill_missing_properties(target: dict, fallback: dict) -> None:
+    for key, value in fallback.items():
+        if key in {"source", "timestamp"}:
+            continue
+        if target.get(key) in (None, "") and value not in (None, ""):
+            target[key] = value
+
+
+def _timestamp_sort_value(value: Any) -> float:
+    if value in (None, ""):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text:
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    if text.endswith("Z"):
+        text = text.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return 0.0
