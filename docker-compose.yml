@@ -2,6 +2,29 @@
 # Usage: cp .env.example .env && docker compose up -d
 
 services:
+  # ─── TypeDB (Type-safe ontology storage via Foundry SPI) ─────────────────
+  typedb:
+    image: typedb/typedb:2.28.3
+    container_name: sentinel-typedb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TYPEDB_PORT:-1729}:1729"
+    volumes:
+      - typedb_data:/opt/typedb-all-linux-x86_64/server/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/1729'""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - sentinel
+
   # ─── Valkey (Redis-compatible event bus / cache) ───────────────────────────
   valkey:
     image: valkey/valkey:8-alpine
@@ -284,6 +307,7 @@ services:
       - sentinel
 
 volumes:
+  typedb_data:
   valkey_data:
   dagster_pg_data:
 
