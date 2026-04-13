@@ -1,9 +1,11 @@
 """
 Country intelligence tools — composite country profiles and scoring.
+Uses REST Countries API for country metadata instead of hardcoded data.
 """
 
 import os
 import logging
+from functools import lru_cache
 
 import httpx
 
@@ -13,34 +15,107 @@ logger = logging.getLogger(__name__)
 
 FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
 FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
+REST_COUNTRIES_URL = os.getenv("REST_COUNTRIES_URL", "https://restcountries.com/v3.1")
 
 
 def _foundry_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {FOUNDRY_TOKEN}"} if FOUNDRY_TOKEN else {}
 
-# Country metadata for intelligence profiles
-COUNTRY_DATA: dict[str, dict] = {
-    "US": {"name": "United States", "region": "north-america", "coords": [-98.6, 39.8]},
-    "GB": {"name": "United Kingdom", "region": "europe", "coords": [-1.2, 52.2]},
-    "JP": {"name": "Japan", "region": "east-asia", "coords": [138.3, 36.2]},
-    "DE": {"name": "Germany", "region": "europe", "coords": [10.4, 51.2]},
-    "FR": {"name": "France", "region": "europe", "coords": [2.2, 46.2]},
-    "IN": {"name": "India", "region": "south-asia", "coords": [78.9, 20.6]},
-    "CN": {"name": "China", "region": "east-asia", "coords": [104.2, 35.9]},
-    "BR": {"name": "Brazil", "region": "south-america", "coords": [-51.9, -14.2]},
-    "AU": {"name": "Australia", "region": "oceania", "coords": [133.8, -25.3]},
-    "RU": {"name": "Russia", "region": "europe", "coords": [105.3, 61.5]},
-    "ZA": {"name": "South Africa", "region": "africa", "coords": [22.9, -30.6]},
-    "NG": {"name": "Nigeria", "region": "africa", "coords": [8.7, 9.1]},
-    "EG": {"name": "Egypt", "region": "middle-east", "coords": [30.8, 26.8]},
-    "MX": {"name": "Mexico", "region": "north-america", "coords": [-102.6, 23.6]},
-    "ID": {"name": "Indonesia", "region": "south-asia", "coords": [113.9, -0.8]},
-    "TR": {"name": "Turkey", "region": "middle-east", "coords": [35.2, 38.9]},
-    "SA": {"name": "Saudi Arabia", "region": "middle-east", "coords": [45.1, 23.9]},
-    "KR": {"name": "South Korea", "region": "east-asia", "coords": [127.8, 35.9]},
-    "UA": {"name": "Ukraine", "region": "europe", "coords": [31.2, 48.4]},
-    "PK": {"name": "Pakistan", "region": "south-asia", "coords": [69.3, 30.4]},
+
+# Region mapping from UN regions to our GSE region IDs
+_REGION_MAP: dict[str, str] = {
+    "Europe": "europe",
+    "Asia": "east-asia",
+    "Africa": "africa",
+    "Americas": "north-america",
+    "Oceania": "oceania",
+    "Middle East": "middle-east",
+    "South-Eastern Asia": "south-asia",
+    "Southern Asia": "south-asia",
+    "Eastern Asia": "east-asia",
+    "Western Asia": "middle-east",
+    "Northern America": "north-america",
+    "Southern America": "south-america",
+    "Northern Africa": "africa",
+    "Sub-Saharan Africa": "africa",
+    "Australia and New Zealand": "oceania",
+    "Melanesia": "oceania",
+    "Micronesia": "oceania",
+    "Polynesia": "oceania",
+    "Central Asia": "south-asia",
+    "Central America": "north-america",
+    "Caribbean": "north-america",
 }
+
+# Manual overrides for countries whose UN region mapping is ambiguous
+_COUNTRY_REGION_OVERRIDES: dict[str, str] = {
+    "IR": "middle-east",  # Iran
+    "IL": "middle-east",  # Israel
+    "LB": "middle-east",  # Lebanon
+    "SY": "middle-east",  # Syria
+    "IQ": "middle-east",  # Iraq
+    "YE": "middle-east",  # Yemen
+    "JO": "middle-east",  # Jordan
+    "PS": "middle-east",  # Palestine
+    "KW": "middle-east",  # Kuwait
+    "AE": "middle-east",  # UAE
+    "QA": "middle-east",  # Qatar
+    "BH": "middle-east",  # Bahrain
+    "OM": "middle-east",  # Oman
+    "SA": "middle-east",  # Saudi Arabia
+    "EG": "middle-east",  # Egypt
+    "TR": "middle-east",  # Turkey
+    "UA": "europe",       # Ukraine
+    "RU": "europe",       # Russia
+}
+
+# In-memory cache of country metadata
+_country_cache: dict[str, dict] | None = None
+
+
+async def _load_all_countries() -> dict[str, dict]:
+    """Fetch all countries from REST Countries API and build lookup."""
+    global _country_cache
+    if _country_cache is not None:
+        return _country_cache
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(f"{REST_COUNTRIES_URL}/all?fields=cca2,name,region,subregion,latlng,area,population")
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning("Failed to fetch countries from REST Countries API: %s", e)
+        _country_cache = {}
+        return _country_cache
+
+    result: dict[str, dict] = {}
+    for country in data:
+        code = country.get("cca2", "")
+        if not code:
+            continue
+        region = country.get("region", "")
+        subregion = country.get("subregion", "")
+        coords = country.get("latlng", [0, 0])
+        # latlng is [lat, lng] in REST Countries, we need [lng, lat]
+        mapped_region = _COUNTRY_REGION_OVERRIDES.get(code) or _REGION_MAP.get(region) or _REGION_MAP.get(subregion) or region.lower().replace(" ", "-")
+        result[code] = {
+            "name": country.get("name", {}).get("common", code),
+            "region": mapped_region,
+            "coords": [coords[1] if len(coords) > 1 else 0, coords[0] if len(coords) > 0 else 0],
+            "area": country.get("area"),
+            "population": country.get("population"),
+        }
+
+    _country_cache = result
+    logger.info("Loaded %d countries from REST Countries API", len(result))
+    return result
+
+
+async def _get_country(code: str) -> dict | None:
+    """Get country metadata by ISO code."""
+    countries = await _load_all_countries()
+    return countries.get(code.upper())
 
 
 async def get_country_intelligence(country_code: str) -> dict:
@@ -48,7 +123,7 @@ async def get_country_intelligence(country_code: str) -> dict:
     Get comprehensive intelligence profile for a country.
     Returns composite risk score across 12 categories.
     """
-    country = COUNTRY_DATA.get(country_code.upper())
+    country = await _get_country(country_code)
     if not country:
         return {"error": f"Unknown country code: {country_code}"}
 
@@ -112,27 +187,32 @@ async def get_country_intelligence(country_code: str) -> dict:
 
 async def get_country_list() -> list[dict]:
     """Get list of all tracked countries with summary data."""
+    countries = await _load_all_countries()
+    if not countries:
+        return []
+
     scorer = GSEScorer()
     all_results = await scorer.compute_all_regions()
     result_map = {r.region_id: r for r in all_results}
 
-    countries = []
-    for code, data in COUNTRY_DATA.items():
+    country_list = []
+    for code, data in countries.items():
         gse = result_map.get(data["region"])
-        countries.append({
+        country_list.append({
             "countryCode": code,
             "countryName": data["name"],
             "regionId": data["region"],
             "gseScore": gse.gse_score if gse else 0,
             "threatLevel": gse.threat_level.value if gse else "STABLE",
             "eventCount": gse.event_count if gse else 0,
+            "population": data.get("population"),
         })
-    countries.sort(key=lambda c: c["gseScore"], reverse=True)
-    return countries
+    country_list.sort(key=lambda c: c["gseScore"], reverse=True)
+    return country_list
 
 
 async def _fetch_financial(country_code: str) -> list[dict]:
-    """Fetch financial indicators for a country."""
+    """Fetch financial indicators for a country from Foundry."""
     headers = _foundry_headers()
     try:
         async with httpx.AsyncClient(timeout=15.0, base_url=FOUNDRY_API_URL) as client:
@@ -154,7 +234,7 @@ async def _fetch_financial(country_code: str) -> list[dict]:
 
 
 async def _fetch_events_for_country(country_code: str) -> list[dict]:
-    """Fetch active events for a country."""
+    """Fetch active events for a country from Foundry."""
     headers = _foundry_headers()
     try:
         async with httpx.AsyncClient(timeout=15.0, base_url=FOUNDRY_API_URL) as client:
