@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
   Database,
@@ -8,280 +8,169 @@ import {
   GitBranch,
   Share2,
   Settings,
-  Menu,
-  ChevronRight,
   Shield,
   Globe,
   FileText,
   Bell,
   Radio,
-  ChevronLeft,
-  X,
 } from 'lucide-react'
-import { useAppStore } from '../lib/store'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarRail,
+} from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'overview' },
-  { to: '/map', label: 'Map View', icon: Map, group: 'overview' },
-  { to: '/country', label: 'Country Intel', icon: Globe, group: 'analysis' },
-  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'analysis' },
-  { to: '/objects', label: 'Object Explorer', icon: Database, group: 'data' },
-  { to: '/pipelines', label: 'Pipelines', icon: GitBranch, group: 'data' },
-  { to: '/ontology', label: 'Ontology', icon: Share2, group: 'data' },
-  { to: '/settings', label: 'Settings', icon: Settings, group: 'system' },
-] as const
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
+  { to: '/map', label: 'Map View', icon: Map, group: 'Overview' },
+  { to: '/country', label: 'Country Intel', icon: Globe, group: 'Analysis' },
+  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'Analysis' },
+  { to: '/objects', label: 'Object Explorer', icon: Database, group: 'Data' },
+  { to: '/pipelines', label: 'Pipelines', icon: GitBranch, group: 'Data' },
+  { to: '/ontology', label: 'Ontology', icon: Share2, group: 'Data' },
+  { to: '/settings', label: 'Settings', icon: Settings, group: 'System' },
+]
 
-const GROUP_LABELS: Record<string, string> = {
-  overview: 'OVERVIEW',
-  analysis: 'ANALYSIS',
-  data: 'DATA PLATFORM',
-  system: 'SYSTEM',
+function AppSidebar() {
+  const location = useLocation()
+
+  const groups = ['Overview', 'Analysis', 'Data', 'System']
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link to="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Shield className="size-4" />
+                </div>
+                <div className="flex flex-col gap-0.5 leading-none">
+                  <span className="font-semibold">TerraCube</span>
+                  <span className="text-xs text-muted-foreground">Sentinel</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        {groups.map((group) => (
+          <SidebarGroup key={group}>
+            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {NAV_ITEMS.filter((item) => item.group === group).map((item) => {
+                  const active =
+                    item.to === location.pathname ||
+                    (item.to !== '/' && location.pathname.startsWith(item.to))
+
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <Link to={item.to}>
+                          <item.icon className="size-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      <SidebarFooter>
+        <Separator />
+        <div className="flex items-center justify-between px-2 py-2 text-xs text-muted-foreground">
+          <span>v0.1.0</span>
+          <span className="hidden sm:inline">Open Foundry | Dagster | GLM-5</span>
+        </div>
+      </SidebarFooter>
+
+      <SidebarRail />
+    </Sidebar>
+  )
 }
 
-export default function Layout() {
+function TopBar() {
   const location = useLocation()
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen)
-  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
-
   const current = NAV_ITEMS.find(
     (n) => n.to === location.pathname || (n.to !== '/' && location.pathname.startsWith(n.to)),
   ) ?? NAV_ITEMS[0]
 
-  const groups = ['overview', 'analysis', 'data', 'system']
-  const showSidebarLabels = sidebarOpen || mobileNavOpen
-
   return (
-    <div className="flex h-screen overflow-hidden noise-overlay" style={{ background: 'var(--bg-primary)' }}>
-      {mobileNavOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
-          onClick={() => setMobileNavOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 flex w-64 flex-col transition-transform duration-200 ease-out md:relative md:translate-x-0 ${sidebarOpen ? 'md:w-60' : 'md:w-[68px]'} md:flex-shrink-0 md:transition-all`}
-        style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-subtle)' }}
-      >
-        {/* Brand */}
-        <div className="flex items-center gap-3 px-4 h-16" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-               style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(6, 182, 212, 0.1))', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-            <Shield className="w-4 h-4 text-cyan-400" />
-          </div>
-          <AnimatePresence>
-            {showSidebarLabels && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap"
-              >
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-white tracking-tight">TerraCube</span>
-                  <span className="text-[10px] font-medium text-cyan-400/80 uppercase">Sentinel</span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <button
-            type="button"
-            onClick={() => setMobileNavOpen(false)}
-            className="ml-auto rounded-lg p-2 text-slate-400 md:hidden"
-            aria-label="Close navigation"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <header className="flex items-center justify-between border-b border-border px-5 h-14">
+      <div className="flex items-center gap-3">
+        <SidebarTrigger />
+        <Separator orientation="vertical" className="h-4" />
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">Sentinel</span>
+          <span className="text-muted-foreground">/</span>
+          <span className="font-medium">{current.label}</span>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2" aria-label="Main navigation">
-          {groups.map((group) => {
-            const items = NAV_ITEMS.filter((n) => n.group === group)
-            return (
-              <div key={group} className="mb-3">
-                <AnimatePresence>
-                  {showSidebarLabels && (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="px-3 mb-1.5 text-[10px] font-semibold"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {GROUP_LABELS[group]}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-                {items.map((item) => {
-                  const Icon = item.icon
-                  const active =
-                    item.to === location.pathname ||
-                    (item.to !== '/' && location.pathname.startsWith(item.to))
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      aria-current={active ? 'page' : undefined}
-                      aria-label={item.label}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 mb-0.5 focus-ring relative ${
-                        active
-                          ? 'nav-active-indicator'
-                          : ''
-                      }`}
-                      style={{
-                        background: active ? 'rgba(56, 189, 248, 0.06)' : 'transparent',
-                        color: active ? '#38bdf8' : 'var(--text-secondary)',
-                      }}
-                      title={item.label}
-                      onClick={() => setMobileNavOpen(false)}
-                      onMouseEnter={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.background = 'rgba(99, 130, 191, 0.06)'
-                          e.currentTarget.style.color = 'var(--text-primary)'
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.background = 'transparent'
-                          e.currentTarget.style.color = 'var(--text-secondary)'
-                        }
-                      }}
-                    >
-                      <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-                      <AnimatePresence>
-                        {showSidebarLabels && (
-                          <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="font-medium truncate"
-                          >
-                            {item.label}
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </Link>
-                  )
-                })}
-              </div>
-            )
-          })}
-        </nav>
-
-        {/* Sidebar footer */}
-        <div className="hidden px-3 py-3 md:block" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <button
-            onClick={toggleSidebar}
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs transition-all duration-150 focus-ring"
-            style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(99, 130, 191, 0.06)'
-              e.currentTarget.style.color = 'var(--text-secondary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = 'var(--text-muted)'
-            }}
-          >
-            {sidebarOpen ? (
-              <>
-                <ChevronLeft className="w-4 h-4" />
-                <span>Collapse</span>
-              </>
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header
-          className="flex items-center justify-between h-14 px-5"
-          style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)' }}
-        >
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Toggle navigation menu"
-              className="p-1.5 rounded-lg transition-colors focus-ring md:hidden"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <Menu className="w-4 h-4" />
-            </button>
-            <div className="min-w-0 flex items-center gap-1.5 text-sm">
-              <span style={{ color: 'var(--text-muted)' }}>Sentinel</span>
-              <ChevronRight className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
-              <span className="truncate font-medium text-white">{current.label}</span>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {/* Live indicator */}
-            <div className="badge-live badge-live-green mr-2 hidden sm:inline-flex">
-              <Radio className="w-3 h-3" />
-              <span>LIVE</span>
-            </div>
-
-            {/* Notifications */}
-            <button
-              className="relative p-2 rounded-lg transition-colors focus-ring"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(99, 130, 191, 0.08)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-              aria-label="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
-            </button>
-
-            {/* User avatar */}
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-1"
-              style={{
-                background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(139, 92, 246, 0.2))',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                color: '#38bdf8'
-              }}
-            >
-              OP
-            </div>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-auto p-4 md:p-6" style={{ background: 'var(--bg-primary)' }}>
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-          >
-            <Outlet />
-          </motion.div>
-        </main>
-
-        {/* Footer */}
-        <footer
-          className="flex items-center justify-between px-5 py-2 text-[10px]"
-          style={{ background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
-        >
-          <span>TerraCube Sentinel v0.1.0</span>
-          <span className="hidden sm:inline">Open Foundry Ontology | Dagster Pipelines | GLM-5 AI</span>
-        </footer>
       </div>
-    </div>
+
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="gap-1.5 text-emerald-400 border-emerald-400/20 bg-emerald-400/5">
+          <Radio className="size-3" />
+          LIVE
+        </Badge>
+
+        <Badge variant="outline" className="relative">
+          <Bell className="size-3.5" />
+          <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500" />
+        </Badge>
+
+        <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary border border-primary/20">
+          OP
+        </div>
+      </div>
+    </header>
+  )
+}
+
+export default function Layout() {
+  return (
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <TopBar />
+          <main className="flex-1 overflow-auto p-4 md:p-6">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
+          </main>
+          <footer className="flex items-center justify-between border-t border-border px-5 py-2 text-xs text-muted-foreground">
+            <span>TerraCube Sentinel v0.1.0</span>
+            <span className="hidden sm:inline">Open Foundry Ontology | Dagster Pipelines | GLM-5 AI</span>
+          </footer>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
   )
 }

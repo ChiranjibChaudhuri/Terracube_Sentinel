@@ -8,6 +8,11 @@ const foundryGraphqlTarget = process.env.VITE_FOUNDRY_GRAPHQL_PROXY_TARGET ?? fo
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), cesium({ cesiumBaseUrl: 'cesium' })],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
   build: {
     rollupOptions: {
       output: {
