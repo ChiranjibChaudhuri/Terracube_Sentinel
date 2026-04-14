@@ -12,7 +12,7 @@ services:
     volumes:
       - typedb_data:/opt/typedb-all-linux-x86_64/server/data
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/1729'""]
+      test: ['CMD-SHELL', 'bash -c "echo > /dev/tcp/localhost/1729"']
       interval: 10s
       timeout: 5s
       retries: 5
