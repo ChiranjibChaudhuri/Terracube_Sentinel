@@ -25,12 +25,14 @@ import {
   YAxis,
 } from 'recharts'
 import { PageErrorBanner, SkeletonBlock, SkeletonText } from '../components/AsyncState'
-import {
-  getCountries,
-  getCountry,
-  type CountryIntelResponse,
-  type CountrySummaryResponse,
-} from '../lib/api'
+import { getCountries, getCountry, type CountryIntelResponse, type CountrySummaryResponse } from '@/lib/api'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 const THREAT_STYLES: Record<string, { bg: string; text: string }> = {
   STABLE: { bg: 'rgba(52,211,153,0.08)', text: '#34d399' },
@@ -39,21 +41,18 @@ const THREAT_STYLES: Record<string, { bg: string; text: string }> = {
   CRITICAL: { bg: 'rgba(244,63,94,0.08)', text: '#f43f5e' },
 }
 
+const SEVERITY_STYLES: Record<string, { bg: string; text: string }> = {
+  CRITICAL: { bg: 'rgba(244,63,94,0.08)', text: '#f43f5e' },
+  HIGH: { bg: 'rgba(249,115,22,0.08)', text: '#f97316' },
+  MODERATE: { bg: 'rgba(251,191,36,0.08)', text: '#fbbf24' },
+  LOW: { bg: 'rgba(52,211,153,0.08)', text: '#34d399' },
+}
+
 const TREND_ICON = { up: TrendingUp, down: TrendingDown, stable: Minus }
 
 const CATEGORIES = [
-  'conflict',
-  'terrorism',
-  'natural_disaster',
-  'cyber',
-  'political',
-  'health',
-  'economic',
-  'energy',
-  'migration',
-  'environmental',
-  'space',
-  'technology',
+  'conflict', 'terrorism', 'natural_disaster', 'cyber', 'political',
+  'health', 'economic', 'energy', 'migration', 'environmental', 'space', 'technology',
 ]
 
 function formatRegionLabel(regionId: string) {
@@ -65,8 +64,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function flattenRecord(value: Record<string, unknown>) {
-  const properties = asRecord(value.properties)
-  return { ...value, ...properties }
+  return { ...value, ...(asRecord(value.properties)) }
 }
 
 function toNumber(value: unknown) {
@@ -90,10 +88,7 @@ function deriveTrend(profile: CountryIntelResponse) {
 }
 
 function normalizeCategoryScores(profile: CountryIntelResponse) {
-  return CATEGORIES.map((category) => ({
-    category,
-    score: profile.categories[category]?.score ?? 0,
-  }))
+  return CATEGORIES.map((category) => ({ category, score: profile.categories[category]?.score ?? 0 }))
 }
 
 function normalizeHistory(profile: CountryIntelResponse) {
@@ -106,14 +101,11 @@ function normalizeHistory(profile: CountryIntelResponse) {
 function normalizeFinancialIndicators(profile: CountryIntelResponse) {
   return profile.financialIndicators.slice(0, 6).map((item, index) => {
     const record = flattenRecord(asRecord(item))
-    const value = toNumber(record.value) ?? 0
-    const changePct = toNumber(record.changePct ?? record.change_percent)
-
     return {
       id: toStringValue(record.id, `${profile.countryCode}-financial-${index}`),
-      name: toStringValue(record.name, toStringValue(record.symbol, 'Unnamed indicator')),
-      value,
-      changePct,
+      name: toStringValue(record.name, toStringValue(record.symbol, 'Unnamed')),
+      value: toNumber(record.value) ?? 0,
+      changePct: toNumber(record.changePct ?? record.change_percent),
     }
   })
 }
@@ -121,7 +113,6 @@ function normalizeFinancialIndicators(profile: CountryIntelResponse) {
 function normalizeEvents(profile: CountryIntelResponse) {
   return profile.activeEvents.slice(0, 5).map((item, index) => {
     const record = flattenRecord(asRecord(item))
-
     return {
       id: toStringValue(record.id, `${profile.countryCode}-event-${index}`),
       type: toStringValue(record.hazardType ?? record.type, 'UNKNOWN'),
@@ -131,45 +122,39 @@ function normalizeEvents(profile: CountryIntelResponse) {
   })
 }
 
+function ThreatBadge({ level }: { level: string }) {
+  const style = THREAT_STYLES[level] ?? THREAT_STYLES.STABLE
+  return (
+    <Badge variant="outline" className="text-[10px] font-bold" style={{ background: style.bg, color: style.text, borderColor: `${style.text}22` }}>
+      {level}
+    </Badge>
+  )
+}
+
+function SeverityBadge({ severity }: { severity: string }) {
+  const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.LOW
+  return (
+    <Badge variant="outline" className="text-[10px] font-semibold" style={{ background: style.bg, color: style.text, borderColor: `${style.text}22` }}>
+      {severity}
+    </Badge>
+  )
+}
+
 function CountryIntelSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-      <div className="glass-card overflow-hidden">
-        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <SkeletonBlock className="h-4 w-28" />
-        </div>
-        <div className="space-y-3 p-4">
-          {Array.from({ length: 8 }, (_, index) => (
-            <SkeletonBlock key={index} className="h-11 w-full" />
-          ))}
-        </div>
-      </div>
-
+      <Card>
+        <CardHeader className="pb-3"><SkeletonBlock className="h-4 w-28" /></CardHeader>
+        <CardContent className="space-y-3 p-0">
+          {Array.from({ length: 8 }, (_, i) => <SkeletonBlock key={i} className="h-11 w-full" />)}
+        </CardContent>
+      </Card>
       <div className="space-y-6 lg:col-span-3">
-        <div className="glass-card p-6">
-          <SkeletonBlock className="h-7 w-52" />
-          <div className="mt-4 flex gap-3">
-            <SkeletonBlock className="h-10 w-24" />
-            <SkeletonBlock className="h-6 w-28" />
-          </div>
-        </div>
-
+        <Card><CardContent className="p-6"><SkeletonBlock className="h-7 w-52" /></CardContent></Card>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="glass-card p-5">
-              <SkeletonBlock className="h-5 w-40" />
-              <div className="mt-4">
-                <SkeletonBlock className="h-64 w-full" />
-              </div>
-            </div>
+          {Array.from({ length: 4 }, (_, i) => (
+            <Card key={i}><CardContent className="p-5"><SkeletonBlock className="h-64 w-full" /></CardContent></Card>
           ))}
-        </div>
-
-        <div className="glass-card p-5">
-          <SkeletonBlock className="h-5 w-44" />
-          <div className="mt-4">
-            <SkeletonText lines={6} />
-          </div>
         </div>
       </div>
     </div>
@@ -197,18 +182,14 @@ export default function CountryIntel() {
   })
 
   const filteredCountries = search
-    ? countries.filter((country) =>
-        country.countryName.toLowerCase().includes(search.toLowerCase())
-        || country.countryCode.toLowerCase().includes(search.toLowerCase()),
-      )
+    ? countries.filter((c) => c.countryName.toLowerCase().includes(search.toLowerCase()) || c.countryCode.toLowerCase().includes(search.toLowerCase()))
     : countries
 
-  const selectedCountry = countries.find((country) => country.countryCode === effectiveCountryCode) ?? countries[0]
+  const selectedCountry = countries.find((c) => c.countryCode === effectiveCountryCode) ?? countries[0]
   const profile = countryQuery.data
   const trend = profile ? deriveTrend(profile) : 'stable'
   const TrendIcon = TREND_ICON[trend]
   const threatLevel = profile?.threatLevel ?? selectedCountry?.threatLevel ?? 'STABLE'
-  const threatStyle = THREAT_STYLES[threatLevel] ?? THREAT_STYLES.STABLE
   const categoryScores = profile ? normalizeCategoryScores(profile) : []
   const gseHistory = profile ? normalizeHistory(profile) : []
   const financialIndicators = profile ? normalizeFinancialIndicators(profile) : []
@@ -216,275 +197,223 @@ export default function CountryIntel() {
 
   const handleRetry = () => {
     void countriesQuery.refetch()
-    if (effectiveCountryCode) {
-      void countryQuery.refetch()
-    }
+    if (effectiveCountryCode) void countryQuery.refetch()
   }
 
   const isInitialLoading = countriesQuery.isLoading || (effectiveCountryCode.length > 0 && countryQuery.isLoading && !profile)
 
   return (
-    <motion.div
-      className="space-y-6"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <motion.div className="space-y-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <Globe className="h-5 w-5 text-cyan-400" />
-          <h1 className="text-lg font-bold text-white">Country Intelligence</h1>
+          <Globe className="h-5 w-5 text-primary" />
+          <h1 className="text-lg font-bold">Country Intelligence</h1>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-          <input
+        <div className="relative w-60">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
             type="text"
             placeholder="Search country..."
             aria-label="Search countries"
-            role="searchbox"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="focus-ring w-60 rounded-lg py-2 pl-9 pr-4 text-sm text-white placeholder-[var(--text-muted)] focus:outline-none"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
           />
         </div>
       </div>
 
-      {countriesQuery.isError || countryQuery.isError ? (
-        <PageErrorBanner
-          title="Country intelligence refresh failed"
-          message="The page is retrying automatically. Retry now to request a fresh country profile from the backend."
-          onRetry={handleRetry}
-        />
-      ) : null}
+      {(countriesQuery.isError || countryQuery.isError) && (
+        <PageErrorBanner title="Country intelligence refresh failed" message="The page is retrying automatically." onRetry={handleRetry} />
+      )}
 
       {isInitialLoading ? (
         <CountryIntelSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-          <div className="glass-card overflow-hidden">
-            <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              <h2 className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                Countries by Risk
-              </h2>
-            </div>
-            <div className="max-h-[calc(100vh-16rem)] overflow-y-auto">
-              {filteredCountries.map((country) => {
-                const active = effectiveCountryCode === country.countryCode
-                const tone = THREAT_STYLES[country.threatLevel] ?? THREAT_STYLES.STABLE
-
-                return (
-                  <button
-                    key={country.countryCode}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCountryCode(country.countryCode)
-                      setSearch('')
-                    }}
-                    className="w-full px-4 py-3 text-sm transition-all"
-                    style={{
-                      background: active ? 'rgba(56,189,248,0.06)' : 'transparent',
-                      borderBottom: '1px solid var(--border-subtle)',
-                      borderLeft: active ? '2px solid #38bdf8' : '2px solid transparent',
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2.5 text-left">
-                        <span className="w-6 text-[10px] font-bold font-mono" style={{ color: 'var(--text-muted)' }}>
-                          {country.countryCode}
-                        </span>
-                        <span className={active ? 'font-medium text-cyan-400' : 'text-white'}>
-                          {country.countryName}
-                        </span>
+          {/* Country sidebar */}
+          <Card className="overflow-hidden">
+            <CardHeader className="py-3 px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Countries by Risk</p>
+            </CardHeader>
+            <Separator />
+            <ScrollArea className="h-[calc(100vh-16rem)]">
+              <div className="p-1">
+                {filteredCountries.map((country) => {
+                  const active = effectiveCountryCode === country.countryCode
+                  return (
+                    <button
+                      key={country.countryCode}
+                      type="button"
+                      onClick={() => { setSelectedCountryCode(country.countryCode); setSearch('') }}
+                      className={cn(
+                        'w-full rounded-md px-3 py-2.5 text-sm transition-all text-left',
+                        active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="w-6 text-[10px] font-bold font-mono text-muted-foreground">{country.countryCode}</span>
+                          <span className={cn('truncate', active ? 'font-medium' : '')}>{country.countryName}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] font-bold">{country.gseScore.toFixed(0)}</Badge>
                       </div>
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                        style={{ background: tone.bg, color: tone.text }}
-                      >
-                        {country.gseScore.toFixed(0)}
-                      </span>
-                    </div>
-                  </button>
-                )
-              })}
-              {filteredCountries.length === 0 ? (
-                <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-                  No countries matched your search.
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="space-y-6 lg:col-span-3">
-            <div className="glass-card p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold text-white">{profile?.countryName ?? selectedCountry?.countryName ?? 'Country'}</h2>
-                  <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                    Region: {formatRegionLabel(profile?.regionId ?? selectedCountry?.regionId ?? 'unknown')}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-2 text-right">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-3xl font-bold ${profile && profile.gseScore >= 60 ? 'gradient-text-rose' : profile && profile.gseScore >= 30 ? 'gradient-text-amber' : 'gradient-text-emerald'}`}>
-                      {(profile?.gseScore ?? selectedCountry?.gseScore ?? 0).toFixed(1)}
-                    </span>
-                    <TrendIcon className={`h-5 w-5 ${trend === 'up' ? 'text-rose-400' : trend === 'down' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                  </div>
-                  <span
-                    className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase"
-                    style={{ background: threatStyle.bg, color: threatStyle.text, border: `1px solid ${threatStyle.text}22` }}
-                  >
-                    {threatLevel}
-                  </span>
-                </div>
+                    </button>
+                  )
+                })}
+                {filteredCountries.length === 0 && (
+                  <p className="px-4 py-6 text-sm text-muted-foreground">No countries matched your search.</p>
+                )}
               </div>
-            </div>
+            </ScrollArea>
+          </Card>
+
+          {/* Main content */}
+          <div className="space-y-6 lg:col-span-3">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold">{profile?.countryName ?? selectedCountry?.countryName ?? 'Country'}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Region: {formatRegionLabel(profile?.regionId ?? selectedCountry?.regionId ?? 'unknown')}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 text-right">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        'text-3xl font-bold',
+                        profile && profile.gseScore >= 60 ? 'gradient-text-rose' : profile && profile.gseScore >= 30 ? 'gradient-text-amber' : 'gradient-text-emerald',
+                      )}>
+                        {(profile?.gseScore ?? selectedCountry?.gseScore ?? 0).toFixed(1)}
+                      </span>
+                      <TrendIcon className={cn('h-5 w-5', trend === 'up' ? 'text-rose-400' : trend === 'down' ? 'text-emerald-400' : 'text-slate-500')} />
+                    </div>
+                    <ThreatBadge level={threatLevel} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div className="glass-card p-5">
-                <h3 className="mb-3 text-sm font-semibold text-white">Risk Category Breakdown</h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <RadarChart data={categoryScores} cx="50%" cy="50%" outerRadius="70%">
-                    <PolarGrid stroke="var(--border-subtle)" />
-                    <PolarAngleAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 8 }} />
-                    <Radar name="Risk" dataKey="score" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.15} strokeWidth={2} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm">Risk Category Breakdown</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <RadarChart data={categoryScores} cx="50%" cy="50%" outerRadius="70%">
+                      <PolarGrid stroke="var(--border-subtle)" />
+                      <PolarAngleAxis dataKey="category" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 8 }} />
+                      <Radar name="Risk" dataKey="score" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.15} strokeWidth={2} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-              <div className="glass-card p-5">
-                <h3 className="mb-3 text-sm font-semibold text-white">GSE Trend (30 days)</h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={gseHistory}>
-                    <defs>
-                      <linearGradient id="gseGradCountry" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
-                    <Area type="monotone" dataKey="gse" stroke="#f97316" strokeWidth={2} fill="url(#gseGradCountry)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm">GSE Trend (30 days)</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <AreaChart data={gseHistory}>
+                      <defs>
+                        <linearGradient id="gseGradCountry" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.2} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
+                      <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 9 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 10, fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }} />
+                      <Area type="monotone" dataKey="gse" stroke="#f97316" strokeWidth={2} fill="url(#gseGradCountry)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-              <div className="glass-card overflow-hidden">
-                <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <h3 className="text-sm font-semibold text-white">Economic Indicators</h3>
-                </div>
-                <div>
-                  {financialIndicators.map((indicator, index) => {
-                    const isUp = (indicator.changePct ?? 0) >= 0
-                    return (
-                      <div
-                        key={indicator.id}
-                        className="table-row-hover flex items-center justify-between px-5 py-3"
-                        style={{ borderBottom: index < financialIndicators.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                      >
-                        <span className="text-sm text-white">{indicator.name}</span>
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-sm font-semibold font-mono text-white">
-                            {indicator.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          </span>
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                            {indicator.changePct === null ? 'n/a' : `${isUp ? '+' : ''}${indicator.changePct.toFixed(2)}%`}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm">Economic Indicators</CardTitle></CardHeader>
+                <CardContent className="p-0">
                   {financialIndicators.length === 0 ? (
-                    <p className="px-5 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-                      No financial indicators were returned for this country.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+                    <p className="px-5 py-4 text-sm text-muted-foreground">No financial indicators returned for this country.</p>
+                  ) : (
+                    <Table>
+                      <TableBody>
+                        {financialIndicators.map((indicator, index) => {
+                          const isUp = (indicator.changePct ?? 0) >= 0
+                          return (
+                            <TableRow key={indicator.id}>
+                              <TableCell className="font-medium">{indicator.name}</TableCell>
+                              <TableCell className="text-right font-mono">{indicator.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right w-28">
+                                <span className={cn('flex items-center justify-end gap-0.5 text-xs font-semibold', isUp ? 'text-emerald-400' : 'text-rose-400')}>
+                                  {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                  {indicator.changePct === null ? 'n/a' : `${isUp ? '+' : ''}${indicator.changePct.toFixed(2)}%`}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
 
-              <div className="glass-card overflow-hidden">
-                <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                  <h3 className="text-sm font-semibold text-white">Active Events</h3>
-                </div>
-                <div>
-                  {activeEvents.map((event, index) => (
-                    <div
-                      key={event.id}
-                      className="table-row-hover flex items-center gap-3 px-5 py-3 text-sm"
-                      style={{ borderBottom: index < activeEvents.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                    >
-                      <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${event.severity === 'CRITICAL' ? 'text-rose-400' : event.severity === 'HIGH' ? 'text-orange-400' : 'text-yellow-400'}`} />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium text-white">{event.type}</span>
-                        <span
-                          className="ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={{
-                            background: event.severity === 'CRITICAL' ? 'rgba(244,63,94,0.08)' : event.severity === 'HIGH' ? 'rgba(249,115,22,0.08)' : 'rgba(251,191,36,0.08)',
-                            color: event.severity === 'CRITICAL' ? '#f43f5e' : event.severity === 'HIGH' ? '#f97316' : '#fbbf24',
-                          }}
-                        >
-                          {event.severity}
-                        </span>
-                      </div>
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {new Date(event.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm">Active Events</CardTitle></CardHeader>
+                <CardContent className="p-0">
                   {activeEvents.length === 0 ? (
-                    <p className="px-5 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-                      No active events were returned for this country.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+                    <p className="px-5 py-4 text-sm text-muted-foreground">No active events returned for this country.</p>
+                  ) : (
+                    <Table>
+                      <TableBody>
+                        {activeEvents.map((event) => (
+                          <TableRow key={event.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className={cn('h-4 w-4 shrink-0', event.severity === 'CRITICAL' ? 'text-rose-400' : event.severity === 'HIGH' ? 'text-orange-400' : 'text-yellow-400')} />
+                                <span className="font-medium">{event.type}</span>
+                                <SeverityBadge severity={event.severity} />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">
+                              {new Date(event.timestamp).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
-            <div className="glass-card overflow-hidden">
-              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <h3 className="text-sm font-semibold text-white">Country Comparison</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <th className="px-5 py-3 text-left font-semibold">Country</th>
-                      <th className="px-5 py-3 text-left font-semibold">Region</th>
-                      <th className="px-5 py-3 text-left font-semibold">GSE Score</th>
-                      <th className="px-5 py-3 text-left font-semibold">Threat Level</th>
-                      <th className="px-5 py-3 text-left font-semibold">Events</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {countries.map((country: CountrySummaryResponse) => {
-                      const tone = THREAT_STYLES[country.threatLevel] ?? THREAT_STYLES.STABLE
-
-                      return (
-                        <tr key={country.countryCode} className="table-row-hover" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                          <td className="px-5 py-3 font-medium text-white">{country.countryName}</td>
-                          <td className="px-5 py-3 capitalize" style={{ color: 'var(--text-secondary)' }}>
-                            {formatRegionLabel(country.regionId)}
-                          </td>
-                          <td className="px-5 py-3 font-semibold font-mono text-white">{country.gseScore.toFixed(1)}</td>
-                          <td className="px-5 py-3">
-                            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ background: tone.bg, color: tone.text }}>
-                              {country.threatLevel}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>
-                            {country.eventCount}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Country Comparison</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Country</TableHead>
+                      <TableHead>Region</TableHead>
+                      <TableHead>GSE Score</TableHead>
+                      <TableHead>Threat Level</TableHead>
+                      <TableHead>Events</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {countries.map((country: CountrySummaryResponse) => (
+                      <TableRow key={country.countryCode}>
+                        <TableCell className="font-medium">{country.countryName}</TableCell>
+                        <TableCell className="capitalize text-muted-foreground">{formatRegionLabel(country.regionId)}</TableCell>
+                        <TableCell className="font-mono font-semibold">{country.gseScore.toFixed(1)}</TableCell>
+                        <TableCell><ThreatBadge level={country.threatLevel} /></TableCell>
+                        <TableCell className="text-muted-foreground">{country.eventCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
