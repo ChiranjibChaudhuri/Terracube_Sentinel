@@ -56,6 +56,19 @@
   --sidebar-accent-foreground: #e6edf3;
   --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #38bdf8;
+
+  /* Brand colors */
+  --brand-300: #7DD3FC;
+  --brand-400: #38BDF8;
+  --brand-500: #0EA5E9;
+
+  /* Navy colors */
+  --navy-300: #CBD5E1;
+  --navy-400: #94A3B8;
+  --navy-500: #64748B;
+  --navy-600: #475569;
+  --navy-900: #0F172A;
+  --navy-950: #020617;
 }
 
 /* ─── Global resets ─────────────────────────────────────────────────────────── */
@@ -125,6 +138,7 @@ body {
 .status-dot-amber { background: var(--accent-amber); }
 .status-dot-blue { background: var(--accent-blue); }
 .status-dot-muted { background: var(--text-muted); }
+.status-dot-orange { background: var(--accent-orange); }
 .status-dot-pulse {
   animation: pulse-dot 2s ease-in-out infinite;
 }
@@ -143,6 +157,45 @@ body {
 .severity-strip-orange { border-left-color: var(--accent-orange); }
 .severity-strip-red { border-left-color: var(--accent-red); }
 .severity-strip-blue { border-left-color: var(--accent-blue); }
+
+/* ─── Gradient text utilities ───────────────────────────────────────────────── */
+.gradient-text-cyan {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-rose {
+  background: linear-gradient(135deg, #fb7185, #f43f5e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-amber {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-emerald {
+  background: linear-gradient(135deg, #34d399, #22c55e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Card utilities ─────────────────────────────────────────────────────────── */
+.card-glow {
+  box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.card-hover-transition {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover-transition:hover {
+  box-shadow: 0 0 0 1px var(--border), 0 4px 12px rgba(0,0,0,0.4);
+  transform: translateY(-1px);
+}
 
 /* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {

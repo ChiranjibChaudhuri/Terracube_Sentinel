@@ -7,12 +7,12 @@ import {
   GitBranch,
   Share2,
   Settings,
-  Shield,
   Globe,
   FileText,
   Bell,
   Search,
 } from 'lucide-react'
+import { TerraCubeIcon } from '@/components/brand/terracube-logo'
 import {
   Sidebar,
   SidebarContent,
@@ -34,44 +34,51 @@ import { Input } from '@/components/ui/input'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
-  { to: '/map', label: 'Map View', icon: Map, group: 'Overview' },
-  { to: '/country', label: 'Countries', icon: Globe, group: 'Intelligence' },
-  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'Intelligence' },
-  { to: '/objects', label: 'Objects', icon: Database, group: 'Data' },
-  { to: '/pipelines', label: 'Pipelines', icon: GitBranch, group: 'Data' },
-  { to: '/ontology', label: 'Ontology', icon: Share2, group: 'Data' },
-  { to: '/settings', label: 'Settings', icon: Settings, group: 'System' },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'INTELLIGENCE' },
+  { to: '/map', label: 'Map View', icon: Map, group: 'INTELLIGENCE' },
+  { to: '/country', label: 'Countries', icon: Globe, group: 'INTELLIGENCE' },
+  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'INTELLIGENCE' },
+  { to: '/objects', label: 'Objects', icon: Database, group: 'DATA MANAGEMENT' },
+  { to: '/pipelines', label: 'Pipelines', icon: GitBranch, group: 'DATA MANAGEMENT' },
+  { to: '/ontology', label: 'Ontology', icon: Share2, group: 'DATA MANAGEMENT' },
+  { to: '/settings', label: 'Settings', icon: Settings, group: 'CONFIGURATION' },
 ]
 
 function AppSidebar() {
   const location = useLocation()
-  const groups = ['Overview', 'Intelligence', 'Data', 'System']
+  const groups = ['INTELLIGENCE', 'DATA MANAGEMENT', 'CONFIGURATION']
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <Shield className="size-4" />
+            <Link to="/">
+              <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors">
+                <div className="flex aspect-square size-9 items-center justify-center rounded-lg border border-border/50 bg-muted/50">
+                  <TerraCubeIcon size={24} />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold text-sm">TerraCube</span>
-                  <span className="text-[11px] text-muted-foreground">Sentinel</span>
+                  <span className="text-[10px] text-muted-foreground">Sentinel</span>
                 </div>
-              </Link>
-            </SidebarMenuButton>
+              </div>
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
+        <div className="px-3 pb-2 pt-1">
+          <p className="text-[9px] text-muted-foreground leading-tight">
+            Geospatial intelligence, risk monitoring, and data pipeline orchestration.
+          </p>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
         {groups.map((group) => (
           <SidebarGroup key={group}>
-            <SidebarGroupLabel>{group}</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {group}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {NAV_ITEMS.filter((item) => item.group === group).map((item) => {
@@ -80,7 +87,7 @@ function AppSidebar() {
                     (item.to !== '/' && location.pathname.startsWith(item.to))
                   return (
                     <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                      <SidebarMenuButton isActive={active} tooltip={item.label}>
                         <Link to={item.to}>
                           <item.icon className="size-4" />
                           <span>{item.label}</span>

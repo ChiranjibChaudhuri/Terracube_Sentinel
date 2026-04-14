@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Clock, CheckCircle, XCircle, Loader, ArrowRight, Activity, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react'
 import { fetchObjects } from '@/lib/api-client'
 import type { PipelineExecution } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -69,12 +70,15 @@ export default function Pipelines() {
   return (
     <motion.div className="space-y-6" variants={stagger.container} initial="hidden" animate="visible">
       <motion.div variants={stagger.item} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-bold">Data Pipelines</h1>
-          <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">
-            {isLoading ? 'Loading' : `${pipelineRuns.length} live runs`}
-          </Badge>
+        <div>
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-primary" />
+            <h1 className="text-lg font-bold">Pipeline Operations</h1>
+            <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">
+              {isLoading ? 'Loading' : `${pipelineRuns.length} live runs`}
+            </Badge>
+          </div>
+          <p className="ml-8 mt-1 text-sm text-muted-foreground">Dagster orchestration · Foundry data mesh</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {statusCounts.map(({ status, count, cfg }) => (
@@ -105,7 +109,7 @@ export default function Pipelines() {
           const StatusIcon = cfg.icon
 
           return (
-            <Card key={pipe.name}>
+            <Card key={pipe.name} className={cn('border-t-2', latest?.status === 'SUCCEEDED' ? 'border-t-green-500' : latest?.status === 'RUNNING' ? 'border-t-blue-500' : latest?.status === 'FAILED' ? 'border-t-red-500' : 'border-t-gray-600')}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -152,10 +156,10 @@ export default function Pipelines() {
                   <div className="flex items-center gap-1 flex-wrap">
                     {pipe.assets.map((asset, i) => (
                       <div key={asset} className="flex items-center gap-1">
-                        <Badge variant="secondary" className="font-mono text-[10px] max-w-[120px] truncate" title={asset}>
+                        <Badge variant="secondary" className="font-mono text-[10px] max-w-[120px] truncate hover:scale-105 transition-transform duration-150" title={asset}>
                           {asset.replace(/^(fetch_|download_|compute_|normalize_|load_|store_|register_|update_|aggregate_|search_|filter_)/, '')}
                         </Badge>
-                        {i < pipe.assets.length - 1 && <ArrowRight className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                        {i < pipe.assets.length - 1 && <ArrowRight className="w-3 h-3 shrink-0 text-primary" />}
                       </div>
                     ))}
                   </div>
@@ -176,12 +180,16 @@ export default function Pipelines() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {statusCounts.map(({ status, count, cfg }) => (
-                <div key={status} className="p-4 rounded-xl text-center border" style={{ background: cfg.bg, borderColor: cfg.border }}>
-                  <p className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{status}</p>
-                </div>
-              ))}
+              {statusCounts.map(({ status, count, cfg }) => {
+                const StatusIcon = cfg.icon
+                return (
+                  <div key={status} className="relative p-4 rounded-xl text-center border overflow-hidden" style={{ background: cfg.bg, borderColor: cfg.border }}>
+                    <StatusIcon className="absolute -right-2 -bottom-2 w-16 h-16 opacity-5" style={{ color: cfg.color }} />
+                    <p className="text-3xl font-bold relative z-10" style={{ color: cfg.color }}>{count}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{status}</p>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

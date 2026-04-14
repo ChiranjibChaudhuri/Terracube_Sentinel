@@ -11,6 +11,26 @@ export function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value))
 }
 
+// ── UI constants ─────────────────────────────────────────────────────────────
+
+export const GLASS_PANEL = 'bg-slate-900/50 backdrop-blur-sm border border-slate-700/50'
+
+export const KICKER_CLASS = 'text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'
+
+export const LIVE_BADGE_STYLES: Record<string, { badge: string; dot: string }> = {
+  green: { badge: 'bg-green-500/10 text-green-400 border-green-500/20', dot: 'bg-green-400' },
+  blue: { badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-400' },
+  amber: { badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: 'bg-amber-400' },
+  red: { badge: 'bg-red-500/10 text-red-400 border-red-500/20', dot: 'bg-red-400' },
+}
+
+export const PIPELINE_STATUS_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  SUCCEEDED: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' },
+  RUNNING: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+  FAILED: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20' },
+  PENDING: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/20' },
+}
+
 export function getStatusTone(status: string) {
   const map: Record<string, { bg: string; text: string; border: string }> = {
     SUCCEEDED: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20' },
@@ -30,11 +50,11 @@ export function getStatusTone(status: string) {
 
 // ── Severity system ───────────────────────────────────────────────────────────
 
-export const SEVERITY_CONFIG: Record<string, { color: string; stripClass: string; textClass: string }> = {
-  CRITICAL: { color: '#ef4444', stripClass: 'severity-strip-red', textClass: 'text-red-400' },
-  HIGH: { color: '#f97316', stripClass: 'severity-strip-orange', textClass: 'text-orange-400' },
-  MODERATE: { color: '#f59e0b', stripClass: 'severity-strip-amber', textClass: 'text-amber-400' },
-  LOW: { color: '#22c55e', stripClass: 'severity-strip-green', textClass: 'text-green-400' },
+export const SEVERITY_CONFIG: Record<string, { color: string; stripClass: string; textClass: string; badgeClass?: string; bg?: string; text?: string }> = {
+  CRITICAL: { color: '#ef4444', stripClass: 'severity-strip-red', textClass: 'text-red-400', bg: 'rgba(239,68,68,0.08)', text: '#ef4444' },
+  HIGH: { color: '#f97316', stripClass: 'severity-strip-orange', textClass: 'text-orange-400', bg: 'rgba(249,115,22,0.08)', text: '#f97316' },
+  MODERATE: { color: '#f59e0b', stripClass: 'severity-strip-amber', textClass: 'text-amber-400', bg: 'rgba(245,158,11,0.08)', text: '#f59e0b' },
+  LOW: { color: '#22c55e', stripClass: 'severity-strip-green', textClass: 'text-green-400', bg: 'rgba(34,197,94,0.08)', text: '#22c55e' },
 }
 
 export const THREAT_CONFIG: Record<string, { textClass: string; dotClass: string }> = {

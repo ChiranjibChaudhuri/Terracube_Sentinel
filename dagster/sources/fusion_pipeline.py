@@ -11,8 +11,9 @@ from dagster import (
     asset,
     job,
     schedule,
-    AssetExecutionContext,
+    OpExecutionContext,
     DefaultScheduleStatus,
+    in_process_executor,
 )
 
 from .base_adapter import GeoJSONFeature
@@ -42,7 +43,7 @@ VESSEL_SOURCE_TTLS = {
 }
 
 
-def _load_to_foundry(features: list[GeoJSONFeature], context: AssetExecutionContext | None = None):
+def _load_to_foundry(features: list[GeoJSONFeature], context: OpExecutionContext | None = None):
     """Load normalized GeoJSON features to Foundry API."""
     headers = {"Content-Type": "application/json"}
     if FOUNDRY_TOKEN:
@@ -114,7 +115,7 @@ def _make_id(feat: GeoJSONFeature) -> str:
 # ── Assets ────────────────────────────────────────────────────────
 
 @asset(group_name="data_fusion")
-def fetch_aircraft_positions(context: AssetExecutionContext) -> list[dict]:
+def fetch_aircraft_positions(context: OpExecutionContext) -> list[dict]:
     """Fetch real-time aircraft positions from OpenSky Network."""
     adapter = OpenSkyAdapter()
     try:
@@ -127,7 +128,7 @@ def fetch_aircraft_positions(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_vessel_positions(context: AssetExecutionContext) -> list[dict]:
+def fetch_vessel_positions(context: OpExecutionContext) -> list[dict]:
     """Fetch real-time vessel positions from all configured AIS feeds."""
     adapter = MultiSourceAISAdapter()
     try:
@@ -140,7 +141,7 @@ def fetch_vessel_positions(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_aisstream_vessels(context: AssetExecutionContext) -> list[dict]:
+def fetch_aisstream_vessels(context: OpExecutionContext) -> list[dict]:
     """Fetch real-time vessel positions from aisstream.io."""
     adapter = AISStreamAdapter()
     try:
@@ -153,7 +154,7 @@ def fetch_aisstream_vessels(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_gfw_vessels(context: AssetExecutionContext) -> list[dict]:
+def fetch_gfw_vessels(context: OpExecutionContext) -> list[dict]:
     """Fetch recent historical vessel positions from Global Fishing Watch."""
     adapter = GlobalFishingWatchAdapter()
     try:
@@ -166,7 +167,7 @@ def fetch_gfw_vessels(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_enhanced_fires(context: AssetExecutionContext) -> list[dict]:
+def fetch_enhanced_fires(context: OpExecutionContext) -> list[dict]:
     """Fetch enhanced fire data with FRP and confidence scoring."""
     adapter = FIRMSAdapter()
     try:
@@ -179,7 +180,7 @@ def fetch_enhanced_fires(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_satellite_positions(context: AssetExecutionContext) -> list[dict]:
+def fetch_satellite_positions(context: OpExecutionContext) -> list[dict]:
     """Fetch satellite orbital positions from CelesTrak."""
     adapter = CelesTrakAdapter()
     try:
@@ -192,7 +193,7 @@ def fetch_satellite_positions(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_enhanced_earthquakes(context: AssetExecutionContext) -> list[dict]:
+def fetch_enhanced_earthquakes(context: OpExecutionContext) -> list[dict]:
     """Fetch earthquakes with ShakeMap, tsunami alerts, aftershock tracking."""
     adapter = EarthquakeAdapter()
     try:
@@ -205,7 +206,7 @@ def fetch_enhanced_earthquakes(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_weather_alerts(context: AssetExecutionContext) -> list[dict]:
+def fetch_weather_alerts(context: OpExecutionContext) -> list[dict]:
     """Fetch NWS weather alerts and tropical cyclone data."""
     adapter = WeatherAlertAdapter()
     try:
@@ -218,7 +219,7 @@ def fetch_weather_alerts(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_financial_indicators(context: AssetExecutionContext) -> list[dict]:
+def fetch_financial_indicators(context: OpExecutionContext) -> list[dict]:
     """Fetch financial market data: indices, commodities, crypto."""
     adapter = FinanceAdapter()
     try:
@@ -231,7 +232,7 @@ def fetch_financial_indicators(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_demographic_data(context: AssetExecutionContext) -> list[dict]:
+def fetch_demographic_data(context: OpExecutionContext) -> list[dict]:
     """Fetch socio-economic indicators from World Bank."""
     adapter = DemographicAdapter()
     try:
@@ -244,7 +245,7 @@ def fetch_demographic_data(context: AssetExecutionContext) -> list[dict]:
 
 
 @asset(group_name="data_fusion")
-def fetch_infrastructure_data(context: AssetExecutionContext) -> list[dict]:
+def fetch_infrastructure_data(context: OpExecutionContext) -> list[dict]:
     """Fetch airports and ports data."""
     adapter = InfrastructureDataAdapter()
     try:
@@ -260,7 +261,7 @@ def fetch_infrastructure_data(context: AssetExecutionContext) -> list[dict]:
 
 # ── Job ────────────────────────────────────────────────────────────
 
-@job
+@job(executor_def=in_process_executor)
 def data_fusion_job():
     """Run all data fusion source adapters."""
     fetch_aircraft_positions()

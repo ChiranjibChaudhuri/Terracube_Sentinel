@@ -5,11 +5,16 @@ import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
+  Bell,
   Database,
+  GitBranch,
   Globe,
+  Plane,
+  Radio,
   Satellite,
   Shield,
   Wind,
+  Zap,
 } from 'lucide-react'
 import {
   Area,
@@ -253,10 +258,20 @@ export default function Dashboard() {
       {/* ── KPI metrics row ──────────────────────────────────────────── */}
       <motion.div variants={STAGGER.item} className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {metrics.map((m) => (
-          <Card key={m.label}>
-            <CardContent className="p-4">
+          <Card key={m.label} className="relative overflow-hidden">
+            <div className="absolute top-2 right-2 opacity-20">
+              <svg width="40" height="20" className="overflow-visible">
+                <polyline
+                  fill="none"
+                  stroke={m.color}
+                  strokeWidth="1.5"
+                  points={m.series.map((v, i) => `${i * (40 / (m.series.length - 1))},${20 - (v / 100) * 20}`).join(' ')}
+                />
+              </svg>
+            </div>
+            <CardContent className="p-4" style={{ borderBottom: `2px solid ${m.color}40` }}>
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{m.label}</p>
-              <p className="mt-1 text-2xl font-bold font-mono">{m.value}</p>
+              <p className="mt-1 text-3xl font-bold font-mono">{m.value}</p>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[11px] text-muted-foreground">{m.detail}</span>
                 <span className={cn('text-[11px] font-mono', m.value > 70 ? 'text-red-400' : m.value > 40 ? 'text-amber-400' : 'text-green-400')}>
@@ -273,7 +288,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item} className="xl:col-span-2">
           <Card>
             <CardHeader className="py-3 px-4 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Regional Threat Summary</CardTitle>
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">Regional Threat Summary</CardTitle>
+              </div>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className="status-dot status-dot-green status-dot-pulse" />
                 <span>Live</span>
@@ -300,7 +318,7 @@ export default function Dashboard() {
                     return (
                       <TableRow key={r.regionId}>
                         <TableCell className="font-medium">{r.regionName}</TableCell>
-                        <TableCell className="font-mono font-semibold">{r.gseScore.toFixed(1)}</TableCell>
+                        <TableCell className={cn('font-mono font-semibold', r.gseScore > 60 ? 'text-red-400' : r.gseScore > 40 ? 'text-amber-400' : 'text-green-400')}>{r.gseScore.toFixed(1)}</TableCell>
                         <TableCell>
                           <span className={cn('flex items-center gap-1.5 text-[11px] font-medium', threat.textClass)}>
                             <span className={cn('status-dot', threat.dotClass)} />
@@ -308,7 +326,10 @@ export default function Dashboard() {
                           </span>
                         </TableCell>
                         <TableCell className="font-mono text-muted-foreground">{r.eventCount}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{r.topCategory.replace(/_/g, ' ')}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          <span className={cn('status-dot', r.topCategory === 'hazard' ? 'status-dot-red' : r.topCategory === 'conflict' ? 'status-dot-orange' : r.topCategory === 'terrorism' ? 'status-dot-amber' : 'status-dot-green')} />
+                          {r.topCategory.replace(/_/g, ' ')}
+                        </TableCell>
                         <TableCell>
                           <TrendIcon className={cn('size-3.5', r.trend === 'up' ? 'text-amber-400' : r.trend === 'down' ? 'text-green-400' : 'text-muted-foreground')} />
                         </TableCell>
@@ -325,7 +346,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item}>
           <Card className="h-full">
             <CardHeader className="py-3 px-4">
-              <CardTitle className="text-sm font-medium">Pipeline Health</CardTitle>
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">Pipeline Health</CardTitle>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {[
@@ -340,7 +364,7 @@ export default function Dashboard() {
                       <s.icon className="size-3 text-muted-foreground" />
                       {s.name}
                     </span>
-                    <span className="font-mono text-muted-foreground">{s.pct}%</span>
+                    <span className={cn('font-mono', s.pct > 90 ? 'text-green-400' : s.pct > 70 ? 'text-amber-400' : 'text-red-400')}>{s.pct}%</span>
                   </div>
                   <Progress value={s.pct} className="h-1" />
                   <p className="text-[10px] text-muted-foreground">{s.detail}</p>
@@ -356,7 +380,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item}>
           <Card>
             <CardHeader className="py-3 px-4">
-              <CardTitle className="text-sm font-medium">24h Threat Pressure</CardTitle>
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">24h Threat Pressure</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
@@ -387,7 +414,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item}>
           <Card>
             <CardHeader className="py-3 px-4">
-              <CardTitle className="text-sm font-medium">Regional Severity Index</CardTitle>
+              <div className="flex items-center gap-2">
+                <Wind className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">Regional Severity Index</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
@@ -416,7 +446,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item} className="xl:col-span-2">
           <Card>
             <CardHeader className="py-3 px-4 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Active Hazards</CardTitle>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">Active Hazards</CardTitle>
+              </div>
               <span className="text-[11px] text-muted-foreground">
                 {activeHazards.filter((e) => e.severity === 'CRITICAL').length} critical · {activeHazards.length} total
               </span>
@@ -441,10 +474,15 @@ export default function Dashboard() {
                       const assessment = riskAssessments.find((a) => a.hazardType === e.type)
                       const point = e.geometry as GeoJSONPoint | undefined
                       return (
-                        <TableRow key={e.id} className={sev.stripClass}>
-                          <TableCell className="font-medium text-xs">{e.type.toLowerCase().replace(/_/g, ' ')}</TableCell>
+                        <TableRow key={e.id} className={cn(sev.stripClass, isLive ? 'bg-accent/30' : '')}>
+                          <TableCell className="font-medium text-xs flex items-center gap-2">
+                            {isLive && <span className="status-dot status-dot-green status-dot-pulse" />}
+                            {e.type.toLowerCase().replace(/_/g, ' ')}
+                          </TableCell>
                           <TableCell>
-                            <span className={cn('text-[10px] font-semibold', sev.textClass)}>{e.severity}</span>
+                            <Badge variant="outline" className={cn('text-[10px] font-semibold', sev.badgeClass || '')} style={{ background: sev.bg || '', color: sev.text || '', borderColor: `${sev.text}22` || '' }}>
+                              {e.severity}
+                            </Badge>
                           </TableCell>
                           <TableCell className="font-mono text-xs">{Math.round((e.confidence ?? 0.85) * 100)}%</TableCell>
                           <TableCell className="font-mono text-xs">{assessment?.riskScore.toFixed(1) ?? '—'}</TableCell>
@@ -468,7 +506,10 @@ export default function Dashboard() {
         <motion.div variants={STAGGER.item}>
           <Card className="h-full">
             <CardHeader className="py-3 px-4 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium">Event Feed</CardTitle>
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-primary" />
+                <CardTitle className="text-sm font-medium">Event Feed</CardTitle>
+              </div>
               <div className="flex items-center gap-1.5 text-[11px]">
                 <span className={cn('status-dot', wsConnected ? 'status-dot-green status-dot-pulse' : 'status-dot-red')} />
                 <span className="text-muted-foreground">{wsConnected ? 'Connected' : 'Disconnected'}</span>
@@ -484,13 +525,18 @@ export default function Dashboard() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
+                              {item.kind === 'hazard' && <AlertTriangle className="w-3 h-3 text-red-400" />}
+                              {item.kind === 'alert' && <Bell className="w-3 h-3 text-blue-400" />}
+                              {item.kind === 'pipeline' && <GitBranch className="w-3 h-3 text-purple-400" />}
+                              {item.kind === 'orbital' && <Satellite className="w-3 h-3 text-amber-400" />}
+                              {item.kind === 'tracking' && <Plane className="w-3 h-3 text-green-400" />}
                               <span className={cn('text-[9px] font-semibold uppercase tracking-wider text-muted-foreground')}>{item.kind}</span>
                               {item.live && <span className="status-dot status-dot-green status-dot-pulse" />}
                             </div>
                             <p className="mt-0.5 text-xs font-medium text-foreground truncate">{item.title}</p>
                             <p className="text-[10px] text-muted-foreground truncate">{item.detail}</p>
                           </div>
-                          <span className={cn('text-[10px] font-medium shrink-0', tone.textClass)}>{item.status}</span>
+                          <span className={cn('text-[10px] font-medium shrink-0', tone.text)}>{item.status}</span>
                         </div>
                       </div>
                     )
@@ -506,13 +552,16 @@ export default function Dashboard() {
       <motion.div variants={STAGGER.item}>
         <Card>
           <CardHeader className="py-3 px-4 flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-sm font-medium">Recent Pipeline Runs</CardTitle>
+            <div className="flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-primary" />
+              <CardTitle className="text-sm font-medium">Recent Pipeline Runs</CardTitle>
+            </div>
             <div className="flex items-center gap-3">
               {(['SUCCEEDED', 'RUNNING', 'FAILED'] as const).map((s) => {
                 const count = pipelineRuns.filter((p) => p.status === s).length
                 const tone = getStatusTone(s)
                 return (
-                  <span key={s} className={cn('text-[10px] font-medium', tone.textClass)}>
+                  <span key={s} className={cn('text-[10px] font-medium', tone.text)}>
                     {count} {s.toLowerCase()}
                   </span>
                 )
@@ -540,7 +589,7 @@ export default function Dashboard() {
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-xs">{p.pipelineName}</TableCell>
                       <TableCell>
-                        <span className={cn('flex items-center gap-1.5 text-[10px] font-medium', tone.textClass)}>
+                        <span className={cn('flex items-center gap-1.5 text-[10px] font-medium', tone.text)}>
                           <span className={cn('status-dot', p.status === 'SUCCEEDED' ? 'status-dot-green' : p.status === 'RUNNING' ? 'status-dot-blue status-dot-pulse' : p.status === 'FAILED' ? 'status-dot-red' : 'status-dot-muted')} />
                           {p.status}
                         </span>

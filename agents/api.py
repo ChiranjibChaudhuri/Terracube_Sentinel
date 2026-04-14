@@ -38,10 +38,51 @@ async def bootstrap_cache():
     """Run data adapters once on startup to populate cache if empty."""
     try:
         import sys as _sys
+        import httpx
 
         dagster_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dagster")
         if os.path.isdir(dagster_path):
             _sys.path.insert(0, dagster_path)
+
+        # First, try to sync from Foundry if available (primary source of truth)
+        foundry_url = os.environ.get("FOUNDRY_API_URL", "http://api-gateway:4000/api/v1")
+        foundry_token = os.environ.get("FOUNDRY_TOKEN", "") or os.environ.get("FOUNDRY_API_TOKEN", "")
+        import httpx as _httpx
+        logger.info("Bootstrapping cache from Foundry at %s ...", foundry_url)
+        try:
+            import redis
+            import json
+            redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+            client = redis.from_url(redis_url, decode_responses=True)
+            headers = {"Content-Type": "application/json"}
+            if foundry_token:
+                headers["Authorization"] = f"Bearer {foundry_token}"
+            total = 0
+            with _httpx.Client(timeout=15, base_url=foundry_url) as http_client:
+                resp = http_client.get("/objects", params={"limit": 500}, headers=headers)
+                resp.raise_for_status()
+                all_data = resp.json().get("data", [])
+                logger.info("Foundry returned %d objects, syncing to cache...", len(all_data))
+                type_counts = {}
+                for obj in all_data:
+                    obj_type = obj.get("objectType") or obj.get("_type") or "Unknown"
+                    props = obj.get("properties", {})
+                    entity_type = props.get("entityType") or obj_type
+                    obj_id = obj.get("id", obj.get("_id", f"{entity_type}-{hash(str(obj))}"))
+                    cache_key = f"fusion:{entity_type}:{obj_id}"
+                    # Ensure entityType property is set for the fusion tools reader
+                    if "entityType" not in props:
+                        props["entityType"] = entity_type
+                    client.set(cache_key, json.dumps(obj))
+                    type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
+                    total += 1
+                for et, count in sorted(type_counts.items()):
+                    logger.info("Foundry sync: %s → %d", et, count)
+            client.close()
+            logger.info("Foundry bootstrap complete: %d objects synced", total)
+            return
+        except Exception as e:
+            logger.warning("Foundry bootstrap failed, skipping: %s", e)
 
         from tools.fusion_tools import _read_cache, ALL_ENTITY_TYPES
 
@@ -51,7 +92,6 @@ async def bootstrap_cache():
             return
 
         logger.info("Cache empty — running adapter bootstrap...")
-        # Import and run adapters
         from sources.cache import FusionCache
         from sources.opensky_adapter import OpenSkyAdapter
         from sources.eq_adapter import EarthquakeAdapter

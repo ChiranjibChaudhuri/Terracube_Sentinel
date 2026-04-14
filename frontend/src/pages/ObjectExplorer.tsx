@@ -3,6 +3,7 @@ import { Database, Search, ChevronDown, ChevronRight, ExternalLink, Filter, Refr
 import { OBJECT_TYPES, LINK_TYPES } from '../lib/types'
 import type { ObjectTypeName } from '../lib/types'
 import { fetchObjectCollection } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -73,12 +74,15 @@ export default function ObjectExplorer() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2.5">
-          <Database className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-bold">Object Explorer</h1>
-          <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">
-            {isLoading ? 'Loading' : `${filtered.length}/${totalObjects} objects`}
-          </Badge>
+        <div>
+          <div className="flex items-center gap-2.5">
+            <Database className="h-5 w-5 text-primary" />
+            <h1 className="text-lg font-bold">Ontology Object Browser</h1>
+            <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">
+              {isLoading ? 'Loading' : `${filtered.length}/${totalObjects} objects`}
+            </Badge>
+          </div>
+          <p className="ml-7 mt-1 text-sm text-muted-foreground">Browse and inspect live objects across all entity types</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setRefreshKey((v) => v + 1)} disabled={isLoading}>
           <RefreshCw className={`mr-2 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -114,8 +118,8 @@ export default function ObjectExplorer() {
           ) : paged.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4">
               <Database className="w-10 h-10 mb-3 text-muted-foreground" />
-              <p className="text-sm font-medium mb-1">{isLoading ? 'Loading objects' : 'No live objects found'}</p>
-              <p className="text-xs text-muted-foreground">{isLoading ? 'Reading from Foundry...' : 'Run an ingestion pipeline first'}</p>
+              <p className="text-sm font-medium mb-1">{isLoading ? 'Loading objects' : 'No objects found'}</p>
+              <p className="text-xs text-muted-foreground">{isLoading ? 'Reading from Foundry...' : 'Run an ingestion pipeline to populate the ontology store'}</p>
             </div>
           ) : (
             <>
@@ -136,6 +140,7 @@ export default function ObjectExplorer() {
                     const expanded = expandedId === id
                     const links = getLinksForType(typeName)
                     const entries = Object.entries(obj as Record<string, unknown>).filter(([k]) => k !== '_type')
+                    const typeVariant = typeName.includes('Hazard') || typeName.includes('Event') ? 'destructive' : typeName.includes('Location') || typeName.includes('Region') || typeName.includes('Area') ? 'default' : 'secondary' as const
                     return (
                       <Fragment key={id}>
                         <TableRow className="cursor-pointer" onClick={() => setExpandedId(expanded ? null : id)}>
@@ -143,7 +148,7 @@ export default function ObjectExplorer() {
                             {expanded ? <ChevronDown className="w-3.5 h-3.5 text-primary" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
                           </TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">{id}</TableCell>
-                          <TableCell><Badge variant="secondary" className="text-[10px] font-semibold">{typeName}</Badge></TableCell>
+                          <TableCell><Badge variant={typeVariant} className="text-[10px] font-semibold">{typeName}</Badge></TableCell>
                           <TableCell className="font-medium truncate max-w-xs">{String(name)}</TableCell>
                         </TableRow>
                         {expanded && (
@@ -195,7 +200,7 @@ export default function ObjectExplorer() {
         <span>{filtered.length} filtered / {totalObjects} live objects</span>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-          <span className="px-3 font-mono">{page + 1} / {totalPages}</span>
+          <Badge variant="outline" className="px-3 font-mono">{page + 1} / {totalPages}</Badge>
           <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
         </div>
       </div>

@@ -49,6 +49,86 @@ services:
     networks:
       - sentinel
 
+  # ─── Foundry PostgreSQL (apache/age - PostgreSQL with graph extension) ─────
+  foundry-postgres:
+    image: apache/age:release_PG17_1.6.0
+    container_name: sentinel-foundry-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-openfoundry}
+      POSTGRES_USER: ${POSTGRES_USER:-openfoundry}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_postgres}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - foundry_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openfoundry}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    networks:
+      - sentinel
+
+  # ─── CEL Evaluator (gRPC policy engine) ─────────────────────────────────
+  cel-evaluator:
+    build:
+      context: ./open-foundry/packages/cel-evaluator
+    container_name: sentinel-cel-evaluator
+    restart: unless-stopped
+    environment:
+      CEL_PORT: "50051"
+    networks:
+      - sentinel
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  # ─── Foundry API Gateway ─────────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./open-foundry
+      dockerfile: packages/api/Dockerfile
+    container_name: sentinel-api-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      POSTGRES_URL: "postgresql://${POSTGRES_USER:-openfoundry}:${POSTGRES_PASSWORD}@foundry-postgres:5432/${POSTGRES_DB:-openfoundry}"
+      OPENFGA_URL: "http://openfga:8080"
+      CEL_EVALUATOR_URL: "cel-evaluator:50051"
+      REDPANDA_BROKERS: ""
+      KEYCLOAK_URL: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""
+      OTEL_SERVICE_NAME: api-gateway
+    depends_on:
+      foundry-postgres:
+        condition: service_healthy
+      cel-evaluator:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:4000/.well-known/apollo/server-health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    networks:
+      - sentinel
+
   # ─── Frontend (React SPA via Nginx) ────────────────────────────────────────
   frontend:
     build: ./frontend
@@ -112,15 +192,15 @@ services:
         -p 3000
         -w workspace.yaml
     ports:
-      - "3000:3000"
+      - "3005:3000"
     environment:
       DAGSTER_POSTGRES_HOST: dagster-postgres
       DAGSTER_POSTGRES_PORT: "5432"
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
       DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
+      FOUNDRY_API_URL: "http://api-gateway:4000/api/v1"
+      FOUNDRY_GRAPHQL_URL: "http://api-gateway:4000/graphql"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
@@ -146,9 +226,10 @@ services:
       GFW_MAX_RECORDS: "${GFW_MAX_RECORDS:-1000}"
       REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
       MAX_CLOUD_COVER: "${MAX_CLOUD_COVER:-20}"
-      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-6}"
-      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-50}"
-      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-10}"
+      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-168}"
+      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-100}"
+      DEFAULT_AOI: "${DEFAULT_AOI:-54.5,25.0,57.5,27.5}"
+      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-20}"
       SATELLITE_MAX_ASSETS_PER_SCENE: "${SATELLITE_MAX_ASSETS_PER_SCENE:-5}"
       SATELLITE_ASSET_STORAGE_MODE: "${SATELLITE_ASSET_STORAGE_MODE:-reference}"
       SATELLITE_ASSET_KEYS: "${SATELLITE_ASSET_KEYS:-visual,red,green,blue,nir,nir08,swir16,swir22,scl,B04_10m,B08_10m,TCI_10m}"
@@ -167,6 +248,8 @@ services:
     depends_on:
       dagster-postgres:
         condition: service_healthy
+      api-gateway:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/server_info || exit 1"]
       interval: 30s
@@ -195,8 +278,8 @@ services:
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
       DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
+      FOUNDRY_API_URL: "http://api-gateway:4000/api/v1"
+      FOUNDRY_GRAPHQL_URL: "http://api-gateway:4000/graphql"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
@@ -222,9 +305,10 @@ services:
       GFW_MAX_RECORDS: "${GFW_MAX_RECORDS:-1000}"
       REDIS_URL: "redis://:${VALKEY_PASSWORD}@valkey:6379/0"
       MAX_CLOUD_COVER: "${MAX_CLOUD_COVER:-20}"
-      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-6}"
-      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-50}"
-      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-10}"
+      STAC_LOOKBACK_HOURS: "${STAC_LOOKBACK_HOURS:-168}"
+      STAC_MAX_ITEMS: "${STAC_MAX_ITEMS:-100}"
+      DEFAULT_AOI: "${DEFAULT_AOI:-54.5,25.0,57.5,27.5}"
+      SATELLITE_LLM_MAX_ITEMS: "${SATELLITE_LLM_MAX_ITEMS:-20}"
       SATELLITE_MAX_ASSETS_PER_SCENE: "${SATELLITE_MAX_ASSETS_PER_SCENE:-5}"
       SATELLITE_ASSET_STORAGE_MODE: "${SATELLITE_ASSET_STORAGE_MODE:-reference}"
       SATELLITE_ASSET_KEYS: "${SATELLITE_ASSET_KEYS:-visual,red,green,blue,nir,nir08,swir16,swir22,scl,B04_10m,B08_10m,TCI_10m}"
@@ -243,6 +327,8 @@ services:
     depends_on:
       dagster-postgres:
         condition: service_healthy
+      api-gateway:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'dagster-daemon' || exit 1"]
       interval: 30s
@@ -267,8 +353,8 @@ services:
     ports:
       - "8001:8001"
     environment:
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
+      FOUNDRY_API_URL: "http://api-gateway:4000/api/v1"
+      FOUNDRY_GRAPHQL_URL: "http://api-gateway:4000/graphql"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
@@ -302,6 +388,7 @@ volumes:
   typedb_data:
   valkey_data:
   dagster_pg_data:
+  foundry_pg_data:
 
 networks:
   sentinel:

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from 'react-leaflet'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 'react-leaflet'
 import { Icon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Map as MapIcon, Globe } from 'lucide-react'
@@ -10,6 +10,7 @@ import { formatRegionName } from '../lib/awareness-normalizers'
 import LayerPanel, { type LayerConfig } from '../components/LayerPanel'
 import TimelineControls from '../components/TimelineControls'
 import EntityDetail from '../components/EntityDetail'
+import MapSidebar from '../components/MapSidebar'
 
 const CesiumGlobe = lazy(() => import('../components/CesiumGlobe'))
 
@@ -41,6 +42,143 @@ const vesselIcon = new Icon({
   iconSize: [20, 20], iconAnchor: [10, 10],
 })
 
+// Custom hook for 2D map flyTo
+function useMapFlyTo() {
+  const map = useMap()
+
+  const flyTo = useCallback(
+    (lat: number, lon: number, zoom?: number) => {
+      map.flyTo([lat, lon], zoom ?? 10, {
+        duration: 1.5,
+      })
+    },
+    [map]
+  )
+
+  return flyTo
+}
+
+// 2D Map component that provides flyTo to parent
+function Map2DContent({
+  hazards,
+  aircraft,
+  vessels,
+  gseRegions,
+  layerVisibility,
+  layers,
+  onEntityClick,
+  onFlyToReady,
+}: {
+  hazards: any[]
+  aircraft: any[]
+  vessels: any[]
+  gseRegions: any[]
+  layerVisibility: Record<string, boolean>
+  layers: LayerConfig[]
+  onEntityClick: (entity: any) => void
+  onFlyToReady: (flyTo: (lat: number, lon: number, zoom?: number) => void) => void
+}) {
+  const flyTo = useMapFlyTo()
+
+  useEffect(() => {
+    onFlyToReady(flyTo)
+  }, [flyTo, onFlyToReady])
+
+  const isVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
+
+  return (
+    <>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      />
+
+      {/* GSE threat zones */}
+      {isVisible('gse') && gseRegions.map((region) => {
+        const [lat, lng] = GSE_REGION_COORDS[region.regionId] ?? [0, 0]
+        const color = THREAT_COLORS[region.threatLevel] ?? '#6b7280'
+        return (
+          <CircleMarker
+            key={region.regionId}
+            center={[lat, lng]}
+            radius={20 + region.gseScore / 5}
+            pathOptions={{ color, fillColor: color, fillOpacity: 0.1, weight: 1, dashArray: '4 4' }}
+            eventHandlers={{ click: () => onEntityClick({ entityType: 'GSE Zone', regionName: formatRegionName(region.regionId), ...region }) }}
+          >
+            <Popup>
+              <div className="text-xs space-y-1">
+                <strong>{formatRegionName(region.regionId)}</strong>
+                <div>GSE: {region.gseScore} ({region.threatLevel})</div>
+                <div>Events: {region.eventCount}</div>
+                {region.escalationAlert && <div className="text-red-500 font-semibold">ESCALATION ALERT</div>}
+              </div>
+            </Popup>
+          </CircleMarker>
+        )
+      })}
+
+      {/* Hazard events */}
+      {isVisible('hazards') && hazards.map((e) => {
+        const geom = e.geometry as GeoJSONPoint
+        const [lng, lat] = geom.coordinates
+        const color = SEVERITY_COLORS[e.alertLevel] ?? '#22c55e'
+        return (
+          <CircleMarker
+            key={e.id}
+            center={[lat, lng]}
+            radius={e.severity === 'CRITICAL' ? 12 : e.severity === 'HIGH' ? 9 : 6}
+            pathOptions={{ color, fillColor: color, fillOpacity: 0.5, weight: 2 }}
+            eventHandlers={{ click: () => onEntityClick({ entityType: 'HazardEvent', ...e, geometry: undefined }) }}
+          >
+            <Popup>
+              <div className="text-xs space-y-1">
+                <strong>{e.type}</strong>
+                <div>Severity: {e.severity}</div>
+                <div>Alert: {e.alertLevel}</div>
+                <div>Confidence: {e.confidence}</div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        )
+      })}
+
+      {/* Aircraft */}
+      {isVisible('aircraft') && aircraft.map((a) => {
+        const geom = a.geometry as GeoJSONPoint
+        const [lng, lat] = geom.coordinates
+        return (
+          <Marker key={a.id} position={[lat, lng]} icon={aircraftIcon}
+            eventHandlers={{ click: () => onEntityClick({ entityType: 'Aircraft', ...a, geometry: undefined }) }}>
+            <Popup>
+              <div className="text-xs space-y-1">
+                <strong>{a.callsign || a.icao24}</strong>
+                <div>Alt: {a.altitude?.toLocaleString()}m | Speed: {a.velocity}m/s</div>
+              </div>
+            </Popup>
+          </Marker>
+        )
+      })}
+
+      {/* Vessels */}
+      {isVisible('vessels') && vessels.map((v) => {
+        const geom = v.geometry as GeoJSONPoint
+        const [lng, lat] = geom.coordinates
+        return (
+          <Marker key={v.id} position={[lat, lng]} icon={vesselIcon}
+            eventHandlers={{ click: () => onEntityClick({ entityType: 'Vessel', ...v, geometry: undefined }) }}>
+            <Popup>
+              <div className="text-xs space-y-1">
+                <strong>{v.name || v.mmsi}</strong>
+                <div>{v.shipType} | {v.speed}kn → {v.destination}</div>
+              </div>
+            </Popup>
+          </Marker>
+        )
+      })}
+    </>
+  )
+}
+
 export default function MapView() {
   const [timelineHoursAgo, setTimelineHoursAgo] = useState(0)
   const [timelineTime, setTimelineTime] = useState(() => new Date())
@@ -58,19 +196,21 @@ export default function MapView() {
     gse: true,
   })
 
+  const [showMapSidebar, setShowMapSidebar] = useState(true)
+  const cesiumRef = useRef<any>(null)
+  const flyTo2DRef = useRef<((lat: number, lon: number, zoom?: number) => void) | null>(null)
+
   const layers: LayerConfig[] = useMemo(() => [
-    { id: 'hazards', label: 'Hazard Events', color: '#ef4444', visible: layerVisibility.hazards, count: hazards.length },
-    { id: 'aircraft', label: 'Aircraft', color: '#38bdf8', visible: layerVisibility.aircraft, count: aircraft.length },
-    { id: 'vessels', label: 'Vessels', color: '#3b82f6', visible: layerVisibility.vessels, count: vessels.length },
-    { id: 'satellites', label: 'Satellites', color: '#4ade80', visible: layerVisibility.satellites, count: satellites.length },
-    { id: 'gse', label: 'GSE Threat Zones', color: '#f97316', visible: layerVisibility.gse, count: gseRegions.length },
+    { id: 'hazards', label: 'Hazards (EONET)', color: '#ff4444', visible: layerVisibility.hazards, count: hazards.length },
+    { id: 'aircraft', label: 'Aircraft (ADS-B)', color: '#00ff88', visible: layerVisibility.aircraft, count: aircraft.length },
+    { id: 'vessels', label: 'Vessels (AIS)', color: '#4488ff', visible: layerVisibility.vessels, count: vessels.length },
+    { id: 'satellites', label: 'Satellites (TLE)', color: '#00ccff', visible: layerVisibility.satellites, count: satellites.length },
+    { id: 'gse', label: 'GSE Threat Zones', color: '#ff6600', visible: layerVisibility.gse, count: gseRegions.length },
   ], [aircraft.length, gseRegions.length, hazards.length, layerVisibility, satellites.length, vessels.length])
 
   const toggleLayer = useCallback((id: string) => {
     setLayerVisibility((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }))
   }, [])
-
-  const isVisible = (id: string) => layers.find((l) => l.id === id)?.visible ?? false
 
   const handleTimelineChange = useCallback((hoursAgo: number) => {
     setTimelineHoursAgo(hoursAgo)
@@ -92,6 +232,38 @@ export default function MapView() {
 
   const handleEntityClick = useCallback((entity: Record<string, unknown>) => {
     setSelectedEntity(entity)
+
+    // Fly to the entity location
+    const geom = entity.geometry as GeoJSONPoint | undefined
+    if (geom) {
+      const [lon, lat] = geom.coordinates
+      if (mode === '2d' && flyTo2DRef.current) {
+        flyTo2DRef.current(lat, lon, 12)
+      } else if (mode === '3d' && cesiumRef.current) {
+        cesiumRef.current?.flyTo?.(lon, lat, 500000, 2)
+      }
+    }
+  }, [mode])
+
+  // Handle quick nav from MapSidebar
+  useEffect(() => {
+    const handleQuickNav = (e: Event) => {
+      const customEvent = e as CustomEvent<{ lat: number; lon: number; alt: number }>
+      const { lat, lon, alt } = customEvent.detail
+      if (mode === '2d' && flyTo2DRef.current) {
+        flyTo2DRef.current(lat, lon, 10)
+      } else if (mode === '3d' && cesiumRef.current) {
+        cesiumRef.current?.flyTo?.(lon, lat, alt, 2)
+      }
+    }
+
+    window.addEventListener('quick-nav-flyto', handleQuickNav)
+    return () => window.removeEventListener('quick-nav-flyto', handleQuickNav)
+  }, [mode])
+
+  // Handle sidebar layer toggle visibility
+  const handleToggleSidebar = useCallback(() => {
+    setShowMapSidebar((prev) => !prev)
   }, [])
 
   return (
@@ -113,15 +285,25 @@ export default function MapView() {
       </div>
 
       {/* Data source badge */}
-      <div className="absolute top-4 left-4 z-[1000]">
+      <div className="absolute top-4 right-4 z-[1000]">
         <DataSourceBadge source={dataSource} />
       </div>
 
+      {/* Map sidebar */}
+      {showMapSidebar && (
+        <MapSidebar
+          layers={layers}
+          onToggleLayer={toggleLayer}
+          aircraft={aircraft}
+          vessels={vessels}
+          satellites={satellites}
+          hazards={hazards}
+          onEntityClick={handleEntityClick}
+        />
+      )}
+
       {/* Entity detail panel */}
       <EntityDetail entity={selectedEntity} onClose={() => setSelectedEntity(null)} />
-
-      {/* Layer panel */}
-      <LayerPanel layers={layers} onToggle={toggleLayer} />
 
       {/* Timeline */}
       <TimelineControls
@@ -142,93 +324,18 @@ export default function MapView() {
 
       {mode === '2d' ? (
         <MapContainer center={[20, 0]} zoom={2} className="h-full w-full" style={{ background: '#0f172a' }}>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          <Map2DContent
+            hazards={hazards}
+            aircraft={aircraft}
+            vessels={vessels}
+            gseRegions={gseRegions}
+            layerVisibility={layerVisibility}
+            layers={layers}
+            onEntityClick={handleEntityClick}
+            onFlyToReady={(flyTo) => {
+              flyTo2DRef.current = flyTo
+            }}
           />
-
-          {/* GSE threat zones */}
-          {isVisible('gse') && gseRegions.map((region) => {
-            const [lat, lng] = GSE_REGION_COORDS[region.regionId] ?? [0, 0]
-            const color = THREAT_COLORS[region.threatLevel] ?? '#6b7280'
-            return (
-              <CircleMarker
-                key={region.regionId}
-                center={[lat, lng]}
-                radius={20 + region.gseScore / 5}
-                pathOptions={{ color, fillColor: color, fillOpacity: 0.1, weight: 1, dashArray: '4 4' }}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'GSE Zone', regionName: formatRegionName(region.regionId), ...region }) }}
-              >
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{formatRegionName(region.regionId)}</strong>
-                    <div>GSE: {region.gseScore} ({region.threatLevel})</div>
-                    <div>Events: {region.eventCount}</div>
-                    {region.escalationAlert && <div className="text-red-500 font-semibold">ESCALATION ALERT</div>}
-                  </div>
-                </Popup>
-              </CircleMarker>
-            )
-          })}
-
-          {/* Hazard events */}
-          {isVisible('hazards') && hazards.map((e) => {
-            const geom = e.geometry as GeoJSONPoint
-            const [lng, lat] = geom.coordinates
-            const color = SEVERITY_COLORS[e.alertLevel] ?? '#22c55e'
-            return (
-              <CircleMarker
-                key={e.id}
-                center={[lat, lng]}
-                radius={e.severity === 'CRITICAL' ? 12 : e.severity === 'HIGH' ? 9 : 6}
-                pathOptions={{ color, fillColor: color, fillOpacity: 0.5, weight: 2 }}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'HazardEvent', ...e, geometry: undefined }) }}
-              >
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{e.type}</strong>
-                    <div>Severity: {e.severity}</div>
-                    <div>Alert: {e.alertLevel}</div>
-                    <div>Confidence: {e.confidence}</div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            )
-          })}
-
-          {/* Aircraft */}
-          {isVisible('aircraft') && aircraft.map((a) => {
-            const geom = a.geometry as GeoJSONPoint
-            const [lng, lat] = geom.coordinates
-            return (
-              <Marker key={a.id} position={[lat, lng]} icon={aircraftIcon}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'Aircraft', ...a, geometry: undefined }) }}>
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{a.callsign || a.icao24}</strong>
-                    <div>Alt: {a.altitude?.toLocaleString()}m | Speed: {a.velocity}m/s</div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
-
-          {/* Vessels */}
-          {isVisible('vessels') && vessels.map((v) => {
-            const geom = v.geometry as GeoJSONPoint
-            const [lng, lat] = geom.coordinates
-            return (
-              <Marker key={v.id} position={[lat, lng]} icon={vesselIcon}
-                eventHandlers={{ click: () => setSelectedEntity({ entityType: 'Vessel', ...v, geometry: undefined }) }}>
-                <Popup>
-                  <div className="text-xs space-y-1">
-                    <strong>{v.name || v.mmsi}</strong>
-                    <div>{v.shipType} | {v.speed}kn → {v.destination}</div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
         </MapContainer>
       ) : (
         <Suspense
@@ -239,6 +346,7 @@ export default function MapView() {
           )}
         >
           <CesiumGlobe
+            ref={cesiumRef}
             aircraft={aircraft}
             vessels={vessels}
             satellites={satellites}

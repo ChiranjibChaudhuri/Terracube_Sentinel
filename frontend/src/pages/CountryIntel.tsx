@@ -205,9 +205,12 @@ export default function CountryIntel() {
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <Globe className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-bold">Country Intelligence</h1>
+        <div>
+          <div className="flex items-center gap-2.5">
+            <Globe className="h-5 w-5 text-primary" />
+            <h1 className="text-lg font-bold">Country Risk Intelligence</h1>
+          </div>
+          <p className="ml-7 mt-1 text-sm text-muted-foreground">Geopolitical stability assessment and threat monitoring</p>
         </div>
         <div className="relative w-60">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -252,10 +255,11 @@ export default function CountryIntel() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
+                          <span className={cn('status-dot', country.threatLevel === 'CRITICAL' ? 'status-dot-red' : country.threatLevel === 'HEIGHTENED' ? 'status-dot-orange' : country.threatLevel === 'ELEVATED' ? 'status-dot-amber' : 'status-dot-green')} />
                           <span className="w-6 text-[10px] font-bold font-mono text-muted-foreground">{country.countryCode}</span>
                           <span className={cn('truncate', active ? 'font-medium' : '')}>{country.countryName}</span>
                         </div>
-                        <Badge variant="secondary" className="text-[10px] font-bold">{country.gseScore.toFixed(0)}</Badge>
+                        <Badge variant="outline" className={cn('text-[10px] font-bold', country.gseScore > 60 ? 'text-red-400 border-red-400/20 bg-red-400/5' : country.gseScore > 40 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-green-400 border-green-400/20 bg-green-400/5')}>{country.gseScore.toFixed(0)}</Badge>
                       </div>
                     </button>
                   )
@@ -279,9 +283,19 @@ export default function CountryIntel() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2 text-right">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
+                      <svg className="absolute -right-1 -top-1 w-12 h-12 -rotate-12 opacity-20" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeDasharray={`${(profile?.gseScore ?? selectedCountry?.gseScore ?? 0)} 100`}
+                          className={cn(profile && profile.gseScore >= 60 ? 'text-rose-500' : profile && profile.gseScore >= 30 ? 'text-amber-500' : 'text-emerald-500')}
+                        />
+                      </svg>
                       <span className={cn(
-                        'text-3xl font-bold',
+                        'text-3xl font-bold relative z-10',
                         profile && profile.gseScore >= 60 ? 'gradient-text-rose' : profile && profile.gseScore >= 30 ? 'gradient-text-amber' : 'gradient-text-emerald',
                       )}>
                         {(profile?.gseScore ?? selectedCountry?.gseScore ?? 0).toFixed(1)}
@@ -367,7 +381,7 @@ export default function CountryIntel() {
                     <Table>
                       <TableBody>
                         {activeEvents.map((event) => (
-                          <TableRow key={event.id}>
+                          <TableRow key={event.id} className={cn(event.severity === 'CRITICAL' ? 'severity-strip-red' : event.severity === 'HIGH' ? 'severity-strip-orange' : event.severity === 'MODERATE' ? 'severity-strip-amber' : 'severity-strip-green')}>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 <AlertTriangle className={cn('h-4 w-4 shrink-0', event.severity === 'CRITICAL' ? 'text-rose-400' : event.severity === 'HIGH' ? 'text-orange-400' : 'text-yellow-400')} />

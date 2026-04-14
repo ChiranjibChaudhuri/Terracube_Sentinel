@@ -17,7 +17,7 @@ export default function SettingsPage() {
     >
       <div className="flex items-center gap-2.5">
         <Settings className="w-5 h-5 text-primary" />
-        <h1 className="text-lg font-bold">Settings</h1>
+        <h1 className="text-lg font-bold">System Configuration</h1>
       </div>
 
       <Card>
@@ -61,7 +61,9 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-primary" />
+            <div className="w-6 h-6 rounded bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-white">TC</span>
+            </div>
             <CardTitle className="text-sm">About TerraCube Sentinel</CardTitle>
           </div>
           <CardDescription>

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 
 const pages = [
   { name: 'Dashboard', path: '/', wait: 3000 },
+  { name: 'MapView', path: '/map', wait: 5000 },
   { name: 'Pipelines', path: '/pipelines', wait: 2000 },
   { name: 'Briefing', path: '/briefing', wait: 2000 },
   { name: 'CountryIntel', path: '/country-intel', wait: 2000 },

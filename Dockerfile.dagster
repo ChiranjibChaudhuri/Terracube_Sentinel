@@ -14,6 +14,6 @@ RUN mkdir -p /opt/dagster/dagster_home && \
 ENV DAGSTER_HOME=/opt/dagster/dagster_home
 
 # Run as non-root user
-RUN addgroup --system dagster && adduser --system --ingroup dagster dagster && \
-    chown -R dagster:dagster /opt/dagster
+RUN addgroup --system dagster && adduser --system --ingroup dagster --home /home/dagster --shell /bin/bash dagster && \
+    chown -R dagster:dagster /opt/dagster /home/dagster
 USER dagster

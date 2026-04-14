@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useImperativeHandle, useState } from 'react'
 import {
   CameraFlyTo,
   EllipseGraphics,
@@ -12,6 +12,7 @@ import {
   Scene,
   SkyAtmosphere,
   Viewer,
+  Camera,
 } from 'resium'
 import { Cartesian3, Color, Terrain } from 'cesium'
 import type { GseRegionSummaryResponse } from '../lib/api'
@@ -51,6 +52,10 @@ interface CesiumGlobeProps {
   onTimeChange?: (time: Date) => void
 }
 
+export interface CesiumGlobeRef {
+  flyTo: (lon: number, lat: number, alt?: number, duration?: number) => void
+}
+
 function isLayerVisible(layerVisibility: CesiumLayerVisibility | undefined, id: keyof Required<CesiumLayerVisibility>) {
   return layerVisibility?.[id] ?? true
 }
@@ -88,7 +93,7 @@ const CesiumEntityFeature = memo(function CesiumEntityFeature({
   )
 })
 
-function CesiumGlobe({
+const CesiumGlobe = forwardRef<CesiumGlobeRef, CesiumGlobeProps>(({
   aircraft,
   vessels,
   satellites,
@@ -100,11 +105,30 @@ function CesiumGlobe({
   speed = 60,
   onEntityClick,
   onTimeChange,
-}: CesiumGlobeProps) {
+}, ref) => {
+  const cameraRef = useRef<any>(null)
   const [hoveredEntityId, setHoveredEntityId] = useState<string | null>(null)
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
   const terrain = useMemo(() => Terrain.fromWorldTerrain(), [])
   const creditContainer = useMemo(() => document.createElement('div'), [])
+
+  // Expose flyTo method via imperative handle
+  useImperativeHandle(ref, () => ({
+    flyTo: (lon: number, lat: number, alt = 500000, duration = 2) => {
+      const destination = Cartesian3.fromDegrees(lon, lat, alt)
+      if (cameraRef.current) {
+        cameraRef.current.flyTo(destination, {
+          duration,
+          maximumHeight: alt * 2,
+          orientation: {
+            heading: 0,
+            pitch: -Math.PI / 2,
+            roll: 0,
+          },
+        })
+      }
+    },
+  }), [])
 
   const entities = useMemo(() => {
     const nextEntities: CesiumEntityDescriptor[] = []
@@ -195,6 +219,7 @@ function CesiumGlobe({
           duration={0}
           once
         />
+        <Camera ref={cameraRef} />
         <CesiumTimeline
           currentTime={currentTime}
           isPlaying={isPlaying}
@@ -213,6 +238,8 @@ function CesiumGlobe({
       </Viewer>
     </div>
   )
-}
+})
+
+CesiumGlobe.displayName = 'CesiumGlobe'
 
 export default memo(CesiumGlobe)

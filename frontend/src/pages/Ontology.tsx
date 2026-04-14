@@ -78,7 +78,6 @@ function emptyMetrics(status: LiveStatus = 'idle'): Record<ObjectTypeName, TypeM
 function objectId(o: OntologyObjectPreview): string { return String(o.id ?? o._id ?? o.objectId ?? '?') }
 function objectLabel(o: OntologyObjectPreview): string { return String(o.name ?? o.sourceSceneId ?? o.pipelineName ?? o.message ?? o.symbol ?? objectId(o)) }
 function formatCount(v: number): string { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v) }
-function compactCount(v: number): string { return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) }
 
 // ── Build graph data for react-force-graph ──────────────────────────
 
@@ -174,10 +173,12 @@ export default function Ontology() {
     setSelectedNode(node.id === selectedNode ? null : node.id)
   }, [selectedNode])
 
-  const handleNodeHover = useCallback((node: any) => {
+  const handleNodeHover = useCallback((node: any | null) => {
     if (fgRef.current) {
-      fgRef.current.centerAt(node.x, node.y, 400)
-      fgRef.current.zoom(2.5, 400)
+      if (node) {
+        fgRef.current.centerAt(node.x, node.y, 400)
+        fgRef.current.zoom(2.5, 400)
+      }
     }
   }, [])
 
@@ -237,14 +238,83 @@ export default function Ontology() {
                 ref={fgRef}
                 graphData={{ nodes, links: graphLinks }}
                 nodeId="id"
-                nodeColor={(n: any) => n.color}
+                nodeCanvasObject={(node, ctx, globalScale) => {
+                  const size = 8 + Math.min(20, Math.log10((node.val || 0) + 1) * 5)
+                  const x = node.x
+                  const y = node.y
+
+                  // Create gradient fill
+                  const gradient = ctx.createRadialGradient(x, y, 0, x, y, size)
+                  gradient.addColorStop(0, node.color)
+                  gradient.addColorStop(1, `${node.color}80`)
+
+                  // Draw glow/shadow
+                  ctx.shadowColor = node.color
+                  ctx.shadowBlur = 15
+                  ctx.shadowOffsetX = 0
+                  ctx.shadowOffsetY = 0
+
+                  // Draw circle with gradient
+                  ctx.beginPath()
+                  ctx.arc(x, y, size, 0, 2 * Math.PI, false)
+                  ctx.fillStyle = gradient
+                  ctx.fill()
+
+                  // Reset shadow for text
+                  ctx.shadowColor = 'transparent'
+                  ctx.shadowBlur = 0
+
+                  // Draw text label below node
+                  const label = node.name.length > 12 ? node.name.slice(0, 11) + '…' : node.name
+                  const fontSize = 10 / globalScale
+                  ctx.font = `${fontSize}px Geist Variable, sans-serif`
+                  ctx.textAlign = 'center'
+                  ctx.textBaseline = 'top'
+                  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+                  ctx.fillText(label, x, y + size + 2)
+                }}
+                linkCanvasObject={(link, ctx, globalScale) => {
+                  const start = typeof link.source === 'string' ? nodes.find(n => n.id === link.source) : link.source
+                  const end = typeof link.target === 'string' ? nodes.find(n => n.id === link.target) : link.target
+                  if (!start || !end || typeof start.x === 'undefined' || typeof start.y === 'undefined' || typeof end.x === 'undefined' || typeof end.y === 'undefined') return
+                  const opacity = link.opacity ?? 0.12
+
+                  // Draw curved line
+                  ctx.beginPath()
+                  ctx.moveTo(start.x, start.y)
+                  ctx.quadraticCurveTo(
+                    (start.x + end.x) / 2,
+                    (start.y + end.y) / 2 - 20,
+                    end.x,
+                    end.y
+                  )
+                  ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`
+                  ctx.lineWidth = 1.5
+                  ctx.stroke()
+
+                  // Draw directional arrow
+                  const midX = (start.x + end.x) / 2
+                  const midY = (start.y + end.y) / 2 - 20
+                  const angle = Math.atan2(end.y - start.y, end.x - start.x)
+                  const arrowSize = 6 / globalScale
+
+                  ctx.beginPath()
+                  ctx.moveTo(midX, midY)
+                  ctx.lineTo(
+                    midX - arrowSize * Math.cos(angle - Math.PI / 6),
+                    midY - arrowSize * Math.sin(angle - Math.PI / 6)
+                  )
+                  ctx.lineTo(
+                    midX - arrowSize * Math.cos(angle + Math.PI / 6),
+                    midY - arrowSize * Math.sin(angle + Math.PI / 6)
+                  )
+                  ctx.closePath()
+                  ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`
+                  ctx.fill()
+                }}
                 nodeVal={(n: any) => 8 + Math.min(20, Math.log10((n.val || 0) + 1) * 5)}
                 nodeLabel={(n: any) => n.id}
                 linkLabel={(l: any) => l.name}
-                linkColor={() => 'rgba(255,255,255,0.12)'}
-                linkWidth={1}
-                linkDirectionalArrowLength={4}
-                linkDirectionalArrowRelPos={1}
                 onNodeClick={handleNodeClick}
                 onNodeHover={handleNodeHover}
                 backgroundColor="#0f1117"
@@ -253,7 +323,6 @@ export default function Ontology() {
                 enablePanInteraction={true}
                 warmupTicks={50}
                 cooldownTicks={100}
-                linkCurvature={0.15}
               />
             )}
           </CardContent>

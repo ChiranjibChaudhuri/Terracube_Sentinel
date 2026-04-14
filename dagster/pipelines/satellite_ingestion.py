@@ -31,8 +31,12 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "terracube-satellite")
 
-# AOI — configurable, default to a global bbox
-DEFAULT_AOI = [-180, -60, 180, 60]
+# AOI — configurable via env or default to a global bbox
+_DEFAULT_AOI_ENV = os.environ.get("DEFAULT_AOI", "")
+if _DEFAULT_AOI_ENV:
+    DEFAULT_AOI = [float(x) for x in _DEFAULT_AOI_ENV.split(",")]
+else:
+    DEFAULT_AOI = [-180, -60, 180, 60]
 MAX_CLOUD_COVER = float(os.environ.get("MAX_CLOUD_COVER", "20"))
 STAC_LOOKBACK_HOURS = int(os.environ.get("STAC_LOOKBACK_HOURS", "6"))
 STAC_MAX_ITEMS = int(os.environ.get("STAC_MAX_ITEMS", "50"))
