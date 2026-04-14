@@ -8,6 +8,8 @@ Data flow: cache-first (Redis/Valkey), Foundry API as fallback.
 import json
 import os
 import logging
+import time
+from functools import lru_cache
 from itertools import islice
 from typing import Any
 
@@ -15,10 +17,14 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:8080/api/v1")
+FOUNDRY_API_URL = os.getenv("FOUNDRY_API_URL", "http://localhost:4000/api/v1")
 FOUNDRY_TOKEN = os.getenv("FOUNDRY_TOKEN") or os.getenv("FOUNDRY_API_TOKEN", "")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CACHE_SCAN_COUNT = 250
+
+# In-memory TTL cache (avoids 10+ Valkey roundtrips per /fusion/awareness request)
+_fusion_cache: dict[str, tuple[float, list]] = {}
+_FUSION_TTL = 15  # seconds
 
 ALL_ENTITY_TYPES = [
     "HazardEvent", "Aircraft", "Vessel", "SatellitePass",
@@ -32,9 +38,18 @@ def _foundry_headers() -> dict[str, str]:
 
 
 def _read_cache(entity_types, limit=500):
-    """Read cached entities directly from Redis/Valkey."""
+    """Read cached entities directly from Redis/Valkey with in-memory TTL."""
     if limit <= 0:
         return []
+
+    # Build a cache key from requested types
+    cache_key = ",".join(sorted(entity_types)) + f":{limit}"
+    now = time.monotonic()
+
+    # Check in-memory cache
+    cached = _fusion_cache.get(cache_key)
+    if cached and (now - cached[0]) < _FUSION_TTL:
+        return cached[1]
 
     client = None
     try:
@@ -59,6 +74,15 @@ def _read_cache(entity_types, limit=500):
                             })
                         except (json.JSONDecodeError, TypeError):
                             pass
+
+        # Store in in-memory cache
+        _fusion_cache[cache_key] = (now, features)
+        # Evict stale entries (keep max 10)
+        if len(_fusion_cache) > 10:
+            oldest = sorted(_fusion_cache.keys(), key=lambda k: _fusion_cache[k][0])[:5]
+            for k in oldest:
+                del _fusion_cache[k]
+
         return features
     except Exception as e:
         logger.warning("Cache read failed: %s", e)

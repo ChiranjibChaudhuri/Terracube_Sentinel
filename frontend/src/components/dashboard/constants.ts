@@ -82,6 +82,7 @@ export const HAZARD_SEVERITY_WEIGHT: Record<string, number> = {
   CRITICAL: 4,
 }
 
+// DEMO DATA — Replace with live pipeline telemetry when Dagster is connected
 export const COMMAND_PRESSURE_SERIES = [
   { label: '00', threat: 42, throughput: 64 },
   { label: '03', threat: 45, throughput: 68 },
@@ -93,6 +94,7 @@ export const COMMAND_PRESSURE_SERIES = [
   { label: '21', threat: 68, throughput: 95 },
 ]
 
+// DEMO DATA — Replace with live Dagster health metrics
 export const PIPELINE_TELEMETRY_SERIES = [
   { label: '00', health: 91, autonomy: 84 },
   { label: '03', health: 92, autonomy: 85 },
@@ -104,6 +106,7 @@ export const PIPELINE_TELEMETRY_SERIES = [
   { label: '21', health: 97, autonomy: 94 },
 ]
 
+// DEMO DATA — Replace with live GSE time-series from /gse/region/{id}
 export const REGION_HEAT_SERIES = [
   { label: '01', gse: 46, volatility: 58 },
   { label: '04', gse: 48, volatility: 59 },
@@ -115,6 +118,7 @@ export const REGION_HEAT_SERIES = [
   { label: '22', gse: 67, volatility: 77 },
 ]
 
+// DEMO DATA — Replace with computed metrics from awareness API
 export const DIAL_SPARKLINES = {
   threatLoad: [58, 61, 63, 67, 70, 73, 78],
   aiHealth: [88, 90, 92, 93, 95, 95, 96],
@@ -122,6 +126,7 @@ export const DIAL_SPARKLINES = {
   sensorMesh: [76, 79, 81, 84, 87, 88, 89],
 }
 
+// DEMO DATA — Replace with computed data quality metrics
 export const QUALITY_SPARKLINES = {
   completeness: [89, 90, 91, 92, 93, 94, 95],
   freshness: [82, 84, 86, 88, 90, 91, 93],

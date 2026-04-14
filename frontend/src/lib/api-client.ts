@@ -115,37 +115,3 @@ export async function fetchLinks<T = LinkRecord>(
     total: Number(json.total ?? data.length),
   }
 }
-
-// ── Agents API (proxied via /agents or direct to :8001) ──────────────
-
-const AGENTS_URL = '/agents'
-
-export async function fetchGSERegions(): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${AGENTS_URL}/gse/regions`)
-  if (!res.ok) throw new Error(`GSE regions fetch failed: ${res.status}`)
-  return res.json()
-}
-
-export async function fetchPendingAlerts(): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${AGENTS_URL}/alerts/pending`)
-  if (!res.ok) throw new Error(`Pending alerts fetch failed: ${res.status}`)
-  return res.json()
-}
-
-export async function fetchDailyBriefing(): Promise<Record<string, unknown>> {
-  const res = await fetch(`${AGENTS_URL}/briefing/daily`)
-  if (!res.ok) throw new Error(`Daily briefing fetch failed: ${res.status}`)
-  return res.json()
-}
-
-export async function fetchCountryIntel(code: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`${AGENTS_URL}/country/${encodeURIComponent(code)}`)
-  if (!res.ok) throw new Error(`Country intel fetch failed: ${res.status}`)
-  return res.json()
-}
-
-export async function fetchAIStatus(): Promise<Record<string, unknown>> {
-  const res = await fetch(`${AGENTS_URL}/ai/status`)
-  if (!res.ok) throw new Error(`AI status fetch failed: ${res.status}`)
-  return res.json()
-}

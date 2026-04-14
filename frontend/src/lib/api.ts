@@ -379,18 +379,24 @@ export function getAlertsPending(signal?: AbortSignal) {
 }
 
 export function getPipelineExecutions(signal?: AbortSignal) {
-  // Pipeline executions come from the Foundry /api endpoint (proxied by nginx),
-  // not the agents API. Use fetch directly with the origin-relative path.
+  // Pipeline executions come from the Foundry /api endpoint (proxied by nginx).
+  // Returns empty array with a console warning when Foundry is unavailable.
   const url = new URL('/api/v1/objects', window.location.origin)
   url.searchParams.set('objectType', 'PipelineExecution')
   url.searchParams.set('pageSize', '100')
   return fetch(url, { signal })
     .then((res) => {
-      if (!res.ok) return { data: [] } as ObjectCollectionResponse<PipelineExecution>
+      if (!res.ok) {
+        console.warn(`[Sentinel] Foundry API unavailable (${res.status}) — pipeline data will be empty until Foundry starts`)
+        return { data: [] } as ObjectCollectionResponse<PipelineExecution>
+      }
       return res.json() as Promise<ObjectCollectionResponse<PipelineExecution>>
     })
     .then((response) => response.data ?? [])
-    .catch(() => [] as PipelineExecution[])
+    .catch((err) => {
+      console.warn('[Sentinel] Foundry API unreachable — pipeline data will be empty until Foundry starts:', err)
+      return [] as PipelineExecution[]
+    })
 }
 
 export function getAlertHistory(limit?: number, signal?: AbortSignal) {

@@ -4,7 +4,7 @@
 services:
   # ─── TypeDB (Type-safe ontology storage via Foundry SPI) ─────────────────
   typedb:
-    image: typedb/typedb:2.28.3
+    image: typedb/typedb:3.8.4-rc2
     container_name: sentinel-typedb
     restart: unless-stopped
     ports:
@@ -119,14 +119,10 @@ services:
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
       DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:8080/graphql}"
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
+      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
-      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
-      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
-      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-terracube-satellite}"
       AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
       CDS_API_URL: "${CDS_API_URL:-https://cds.climate.copernicus.eu/api}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
@@ -199,14 +195,10 @@ services:
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
       DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?DAGSTER_POSTGRES_PASSWORD must be set}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:8080/graphql}"
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
+      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
-      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-http://host.docker.internal:9000}"
-      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
-      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
-      MINIO_BUCKET: "${MINIO_BUCKET:-terracube-satellite}"
       AWS_OPEN_DATA_REGION: "${AWS_OPEN_DATA_REGION:-us-west-2}"
       CDS_API_URL: "${CDS_API_URL:-https://cds.climate.copernicus.eu/api}"
       CDS_API_KEY: "${CDS_API_KEY:-}"
@@ -275,8 +267,8 @@ services:
     ports:
       - "8001:8001"
     environment:
-      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:8080/api/v1}"
-      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:8080/graphql}"
+      FOUNDRY_API_URL: "${FOUNDRY_API_URL:-http://host.docker.internal:4000/api/v1}"
+      FOUNDRY_GRAPHQL_URL: "${FOUNDRY_GRAPHQL_URL:-http://host.docker.internal:4000/graphql}"
       FOUNDRY_API_TOKEN: "${FOUNDRY_API_TOKEN:-}"
       FOUNDRY_TOKEN: "${FOUNDRY_TOKEN:-}"
       OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
