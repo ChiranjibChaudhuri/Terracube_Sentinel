@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { motion } from 'framer-motion'
 import { Clock, CheckCircle, XCircle, Loader, ArrowRight, Activity, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react'
-import { fetchObjects } from '../lib/api-client'
-import type { PipelineExecution } from '../lib/types'
+import { fetchObjects } from '@/lib/api-client'
+import type { PipelineExecution } from '@/lib/types'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 
 const PIPELINE_DEFS = [
   { name: 'real_time_hazards', schedule: 'Every 5 minutes', assets: ['fetch_open_meteo_weather', 'fetch_usgs_earthquakes', 'fetch_nasa_firms_fires', 'fetch_nasa_eonet_events', 'normalize_hazard_records', 'load_hazards_to_foundry'] },
@@ -35,15 +39,12 @@ export default function Pipelines() {
 
   useEffect(() => {
     const controller = new AbortController()
-
     async function loadPipelineRuns() {
       setIsLoading(true)
       setError(null)
       try {
         const runs = await fetchObjects<PipelineExecution>('PipelineExecution', { pageSize: 1000 }, controller.signal)
-        setPipelineRuns(
-          runs.toSorted((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
-        )
+        setPipelineRuns(runs.toSorted((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()))
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === 'AbortError') return
         setPipelineRuns([])
@@ -52,7 +53,6 @@ export default function Pipelines() {
         setIsLoading(false)
       }
     }
-
     void loadPipelineRuns()
     return () => controller.abort()
   }, [refreshKey])
@@ -70,42 +70,29 @@ export default function Pipelines() {
     <motion.div className="space-y-6" variants={stagger.container} initial="hidden" animate="visible">
       <motion.div variants={stagger.item} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-cyan-400" />
-          <h1 className="text-lg font-bold text-white">Data Pipelines</h1>
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-            style={{ background: 'rgba(79,217,198,0.08)', border: '1px solid rgba(79,217,198,0.2)', color: '#4fd9c6' }}
-          >
+          <Activity className="w-5 h-5 text-primary" />
+          <h1 className="text-lg font-bold">Data Pipelines</h1>
+          <Badge variant="outline" className="text-primary border-primary/20 bg-primary/5">
             {isLoading ? 'Loading' : `${pipelineRuns.length} live runs`}
-          </span>
+          </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {statusCounts.map(({ status, count, cfg }) => (
-            <div key={status} className="flex items-center gap-1.5 text-xs">
+            <div key={status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
-              <span style={{ color: 'var(--text-muted)' }}>{count} {status.toLowerCase()}</span>
+              {count} {status.toLowerCase()}
             </div>
           ))}
-          <button
-            type="button"
-            onClick={() => setRefreshKey((value) => value + 1)}
-            disabled={isLoading}
-            className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-40 focus-ring"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="sm" onClick={() => setRefreshKey((v) => v + 1)} disabled={isLoading}>
+            <RefreshCw className={`mr-2 h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
-          </button>
+          </Button>
         </div>
       </motion.div>
 
       {error && (
-        <motion.div
-          variants={stagger.item}
-          className="flex items-start gap-3 rounded-lg px-4 py-3 text-sm"
-          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)', color: '#fb7185' }}
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+        <motion.div variants={stagger.item} className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </motion.div>
       )}
@@ -118,86 +105,86 @@ export default function Pipelines() {
           const StatusIcon = cfg.icon
 
           return (
-            <div key={pipe.name} className="glass-card p-5">
-              <div className="flex items-start justify-between mb-4">
+            <Card key={pipe.name}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold font-mono">{pipe.name}</h3>
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      {pipe.schedule}
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5"
+                    style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}
+                  >
+                    <StatusIcon className={`w-3 h-3 ${latest?.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                    {latest?.status ?? 'NO RUNS'}
+                  </Badge>
+                </div>
+
+                {runs.length > 0 ? (
+                  <div className="space-y-1.5 mb-4">
+                    {runs.slice(0, 3).map((run) => {
+                      const rcfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.PENDING
+                      return (
+                        <div key={run.id} className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1.5" style={{ color: rcfg.color }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: rcfg.color }} />
+                            {run.status}
+                          </span>
+                          <span>{formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    {isLoading ? 'Checking run history' : 'No live run registered for this pipeline'}
+                  </p>
+                )}
+
+                <Separator className="mb-3" />
                 <div>
-                  <h3 className="text-sm font-bold text-white font-mono">{pipe.name}</h3>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Clock className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{pipe.schedule}</span>
+                  <h4 className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-2.5">Asset Graph</h4>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {pipe.assets.map((asset, i) => (
+                      <div key={asset} className="flex items-center gap-1">
+                        <Badge variant="secondary" className="font-mono text-[10px] max-w-[120px] truncate" title={asset}>
+                          {asset.replace(/^(fetch_|download_|compute_|normalize_|load_|store_|register_|update_|aggregate_|search_|filter_)/, '')}
+                        </Badge>
+                        {i < pipe.assets.length - 1 && <ArrowRight className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <span
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase"
-                  style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
-                >
-                  <StatusIcon className={`w-3 h-3 ${latest?.status === 'RUNNING' ? 'animate-spin' : ''}`} />
-                  {latest?.status ?? 'NO RUNS'}
-                </span>
-              </div>
-
-              {runs.length > 0 ? (
-                <div className="space-y-1.5 mb-4">
-                  {runs.slice(0, 3).map((run) => {
-                    const rcfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.PENDING
-                    return (
-                      <div key={run.id} className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
-                        <span className="flex items-center gap-1.5" style={{ color: rcfg.color }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: rcfg.color }} />
-                          {run.status}
-                        </span>
-                        <span>{formatDistanceToNow(new Date(run.startedAt), { addSuffix: true })}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <p className="mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {isLoading ? 'Checking run history' : 'No live run registered for this pipeline'}
-                </p>
-              )}
-
-              <div className="pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                <h4 className="text-[10px] uppercase font-semibold tracking-widest mb-2.5" style={{ color: 'var(--text-muted)' }}>Asset Graph</h4>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {pipe.assets.map((asset, i) => (
-                    <div key={asset} className="flex items-center gap-1">
-                      <span
-                        className="px-2 py-0.5 rounded-md text-[10px] font-mono truncate max-w-[120px]"
-                        style={{ background: 'rgba(99,130,191,0.06)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-                        title={asset}
-                      >
-                        {asset.replace(/^(fetch_|download_|compute_|normalize_|load_|store_|register_|update_|aggregate_|search_|filter_)/, '')}
-                      </span>
-                      {i < pipe.assets.length - 1 && (
-                        <ArrowRight className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )
         })}
       </motion.div>
 
-      <motion.div variants={stagger.item} className="glass-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4 text-cyan-400" />
-          <h2 className="text-sm font-semibold text-white">Pipeline Health Summary</h2>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {statusCounts.map(({ status, count, cfg }) => (
-              <div
-                key={status}
-                className="p-4 rounded-xl text-center"
-                style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
-              >
-                <p className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mt-1" style={{ color: 'var(--text-muted)' }}>{status}</p>
-              </div>
-          ))}
-        </div>
+      <motion.div variants={stagger.item}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              <CardTitle className="text-sm">Pipeline Health Summary</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {statusCounts.map(({ status, count, cfg }) => (
+                <div key={status} className="p-4 rounded-xl text-center border" style={{ background: cfg.bg, borderColor: cfg.border }}>
+                  <p className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1">{status}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </motion.div>
   )

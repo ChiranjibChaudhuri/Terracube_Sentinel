@@ -3,27 +3,22 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Clock, Download, FileText, FileCode2, Shield } from 'lucide-react'
 import { PageErrorBanner, SkeletonBlock, SkeletonText } from '../components/AsyncState'
-import {
-  getDailyBriefing,
-  getDailyBriefingMarkdown,
-  type BriefingResponse,
-} from '../lib/api'
+import { getDailyBriefing, getDailyBriefingMarkdown, type BriefingResponse } from '@/lib/api'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
 
-function StructuredSection({
-  section,
-  index,
-}: {
-  section: BriefingResponse['sections'][number]
-  index: number
-}) {
+function StructuredSection({ section, index }: { section: BriefingResponse['sections'][number]; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.25 }}
     >
-      <h3 className="mb-2.5 text-sm font-bold text-cyan-400">{section.title}</h3>
-      <div className="whitespace-pre-wrap text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+      <h3 className="mb-2.5 text-sm font-bold text-primary">{section.title}</h3>
+      <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
         {section.content.split('**').map((part, partIndex) =>
           partIndex % 2 === 1
             ? <strong key={partIndex} className="font-semibold text-amber-300">{part}</strong>
@@ -36,14 +31,8 @@ function StructuredSection({
 
 function BriefingSkeleton() {
   return (
-    <div className="glass-card overflow-hidden">
-      <div
-        className="px-8 py-5"
-        style={{
-          background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))',
-          borderBottom: '1px solid var(--border-subtle)',
-        }}
-      >
+    <Card>
+      <div className="px-8 py-5 bg-muted/30 border-b border-border">
         <SkeletonBlock className="h-6 w-2/3" />
         <div className="mt-3 flex gap-3">
           <SkeletonBlock className="h-4 w-28" />
@@ -51,15 +40,15 @@ function BriefingSkeleton() {
           <SkeletonBlock className="h-4 w-40" />
         </div>
       </div>
-      <div className="space-y-6 px-8 py-6">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="space-y-3">
+      <CardContent className="space-y-6 px-8 py-6">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="space-y-3">
             <SkeletonBlock className="h-4 w-52" />
             <SkeletonText lines={4} />
           </div>
         ))}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -78,10 +67,7 @@ export default function Briefing() {
     refetchInterval: 60_000,
   })
 
-  const isLoading = briefingView === 'structured'
-    ? briefingQuery.isLoading
-    : markdownQuery.isLoading
-
+  const isLoading = briefingView === 'structured' ? briefingQuery.isLoading : markdownQuery.isLoading
   const hasError = briefingQuery.isError || markdownQuery.isError
 
   const handleRetry = () => {
@@ -92,7 +78,6 @@ export default function Briefing() {
   const handleExport = () => {
     const markdown = markdownQuery.data?.markdown
     if (!markdown) return
-
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -103,140 +88,89 @@ export default function Briefing() {
   }
 
   return (
-    <motion.div
-      className="max-w-4xl space-y-6"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <motion.div className="max-w-4xl space-y-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="flex items-center gap-2.5 text-lg font-bold text-white">
-          <FileText className="h-5 w-5 text-cyan-400" />
+        <h1 className="flex items-center gap-2.5 text-lg font-bold">
+          <FileText className="h-5 w-5 text-primary" />
           Intelligence Briefings
         </h1>
-
         <div className="flex items-center gap-2">
-          <div
-            className="flex overflow-hidden rounded-lg"
-            style={{ border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
-          >
-            <button
-              type="button"
-              onClick={() => setBriefingView('structured')}
-              className="px-4 py-2 text-xs font-semibold transition-all"
-              style={{
-                background: briefingView === 'structured' ? 'rgba(56,189,248,0.1)' : 'transparent',
-                color: briefingView === 'structured' ? '#38bdf8' : 'var(--text-muted)',
-              }}
-            >
-              Structured
-            </button>
-            <button
-              type="button"
-              onClick={() => setBriefingView('markdown')}
-              className="px-4 py-2 text-xs font-semibold transition-all"
-              style={{
-                background: briefingView === 'markdown' ? 'rgba(56,189,248,0.1)' : 'transparent',
-                color: briefingView === 'markdown' ? '#38bdf8' : 'var(--text-muted)',
-              }}
-            >
-              Markdown
-            </button>
-          </div>
-
-          <button
-            type="button"
-            disabled={!markdownQuery.data?.markdown}
-            onClick={handleExport}
-            className="focus-ring flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              background: 'var(--bg-card)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-default)',
-            }}
-          >
-            <Download className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={!markdownQuery.data?.markdown}>
+            <Download className="mr-2 h-3.5 w-3.5" />
             Export Markdown
-          </button>
+          </Button>
         </div>
       </div>
 
-      {hasError ? (
+      {hasError && (
         <PageErrorBanner
           title="Briefing refresh failed"
           message="The page is retrying automatically. Use Retry to request a fresh copy from the backend."
           onRetry={handleRetry}
         />
-      ) : null}
+      )}
 
       {isLoading ? (
         <BriefingSkeleton />
-      ) : briefingView === 'structured' && briefingQuery.data ? (
-        <div className="glass-card overflow-hidden">
-          <div
-            className="px-8 py-5"
-            style={{
-              background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(139,92,246,0.04))',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <h2 className="gradient-text-cyan text-base font-bold">{briefingQuery.data.title}</h2>
-            <div className="mt-2.5 flex flex-wrap items-center gap-5 text-xs" style={{ color: 'var(--text-muted)' }}>
-              <span className="flex items-center gap-1.5">
-                <Shield className="h-3 w-3" />
-                <span className="badge-live badge-live-green">{briefingQuery.data.classification}</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Clock className="h-3 w-3" />
-                {new Date(briefingQuery.data.generatedAt).toLocaleString()}
-              </span>
-              <span>TerraCube Sentinel Automated Briefing</span>
-            </div>
-          </div>
-
-          <div className="space-y-6 px-8 py-6">
-            {briefingQuery.data.sections.map((section, index) => (
-              <StructuredSection key={`${section.title}-${index}`} section={section} index={index} />
-            ))}
-          </div>
-
-          <div className="px-8 py-3 text-center" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            <p className="text-[10px] italic" style={{ color: 'var(--text-muted)' }}>
-              Generated by TerraCube Sentinel Intelligence Platform
-            </p>
-          </div>
-        </div>
-      ) : markdownQuery.data ? (
-        <div className="glass-card overflow-hidden">
-          <div
-            className="flex items-center justify-between px-8 py-5"
-            style={{
-              background: 'linear-gradient(135deg, rgba(56,189,248,0.04), rgba(14,165,233,0.02))',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div>
-              <h2 className="gradient-text-cyan text-base font-bold">Daily Briefing Markdown</h2>
-              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                `/briefing/daily/markdown`
-              </p>
-            </div>
-            <FileCode2 className="h-4 w-4 text-cyan-400" />
-          </div>
-
-          <pre
-            className="overflow-x-auto px-8 py-6 text-sm leading-7 whitespace-pre-wrap"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {markdownQuery.data.markdown}
-          </pre>
-        </div>
       ) : (
-        <PageErrorBanner
-          title="No briefing available"
-          message="The backend did not return a structured briefing or markdown output."
-          onRetry={handleRetry}
-        />
+        <Card>
+          <div className="border-b border-border">
+            <div className="flex items-center justify-between px-8 py-5 bg-muted/30">
+              {briefingView === 'structured' && briefingQuery.data ? (
+                <>
+                  <div>
+                    <h2 className="gradient-text-cyan text-base font-bold">{briefingQuery.data.title}</h2>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-5 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Shield className="h-3 w-3" />
+                        <Badge variant="outline" className="text-emerald-400 border-emerald-400/20 bg-emerald-400/5">{briefingQuery.data.classification}</Badge>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="h-3 w-3" />
+                        {new Date(briefingQuery.data.generatedAt).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <FileCode2 className="h-4 w-4 text-primary" />
+                  <div>
+                    <h2 className="gradient-text-cyan text-base font-bold">Daily Briefing Markdown</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">/briefing/daily/markdown</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-center px-8 py-2">
+              <Tabs value={briefingView} onValueChange={(v) => setBriefingView(v as 'structured' | 'markdown')}>
+                <TabsList className="bg-transparent border-0">
+                  <TabsTrigger value="structured">Structured</TabsTrigger>
+                  <TabsTrigger value="markdown">Markdown</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </div>
+
+          {briefingView === 'structured' && briefingQuery.data ? (
+            <CardContent className="space-y-6 px-8 py-6">
+              {briefingQuery.data.sections.map((section, index) => (
+                <StructuredSection key={`${section.title}-${index}`} section={section} index={index} />
+              ))}
+              <Separator />
+              <p className="text-center text-[10px] italic text-muted-foreground">
+                Generated by TerraCube Sentinel Intelligence Platform
+              </p>
+            </CardContent>
+          ) : markdownQuery.data ? (
+            <pre className="overflow-x-auto px-8 py-6 text-sm leading-7 whitespace-pre-wrap text-muted-foreground">
+              {markdownQuery.data.markdown}
+            </pre>
+          ) : (
+            <PageErrorBanner title="No briefing available" message="The backend did not return a structured briefing or markdown output." onRetry={handleRetry} />
+          )}
+        </Card>
       )}
     </motion.div>
   )
