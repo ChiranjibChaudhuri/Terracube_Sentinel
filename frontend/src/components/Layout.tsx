@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -12,7 +11,7 @@ import {
   Globe,
   FileText,
   Bell,
-  Radio,
+  Search,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -31,15 +30,15 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
   { to: '/map', label: 'Map View', icon: Map, group: 'Overview' },
-  { to: '/country', label: 'Country Intel', icon: Globe, group: 'Analysis' },
-  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'Analysis' },
-  { to: '/objects', label: 'Object Explorer', icon: Database, group: 'Data' },
+  { to: '/country', label: 'Countries', icon: Globe, group: 'Intelligence' },
+  { to: '/briefing', label: 'Briefings', icon: FileText, group: 'Intelligence' },
+  { to: '/objects', label: 'Objects', icon: Database, group: 'Data' },
   { to: '/pipelines', label: 'Pipelines', icon: GitBranch, group: 'Data' },
   { to: '/ontology', label: 'Ontology', icon: Share2, group: 'Data' },
   { to: '/settings', label: 'Settings', icon: Settings, group: 'System' },
@@ -47,8 +46,7 @@ const NAV_ITEMS = [
 
 function AppSidebar() {
   const location = useLocation()
-
-  const groups = ['Overview', 'Analysis', 'Data', 'System']
+  const groups = ['Overview', 'Intelligence', 'Data', 'System']
 
   return (
     <Sidebar collapsible="icon">
@@ -57,12 +55,12 @@ function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Shield className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">TerraCube</span>
-                  <span className="text-xs text-muted-foreground">Sentinel</span>
+                  <span className="font-semibold text-sm">TerraCube</span>
+                  <span className="text-[11px] text-muted-foreground">Sentinel</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -80,7 +78,6 @@ function AppSidebar() {
                   const active =
                     item.to === location.pathname ||
                     (item.to !== '/' && location.pathname.startsWith(item.to))
-
                   return (
                     <SidebarMenuItem key={item.to}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
@@ -99,10 +96,9 @@ function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <Separator />
-        <div className="flex items-center justify-between px-2 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-3 py-2 text-[11px] text-muted-foreground">
           <span>v0.1.0</span>
-          <span className="hidden sm:inline">Open Foundry | Dagster | GLM-5</span>
+          <span className="hidden sidebar-expanded:inline">Open Foundry | Dagster</span>
         </div>
       </SidebarFooter>
 
@@ -118,29 +114,30 @@ function TopBar() {
   ) ?? NAV_ITEMS[0]
 
   return (
-    <header className="flex items-center justify-between border-b border-border px-5 h-14">
+    <header className="flex h-12 items-center justify-between border-b border-border px-4">
       <div className="flex items-center gap-3">
-        <SidebarTrigger />
+        <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="h-4" />
-        <div className="flex items-center gap-1.5 text-sm">
+        <nav className="flex items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">Sentinel</span>
-          <span className="text-muted-foreground">/</span>
+          <span className="text-muted-foreground/50">/</span>
           <span className="font-medium">{current.label}</span>
-        </div>
+        </nav>
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="gap-1.5 text-emerald-400 border-emerald-400/20 bg-emerald-400/5">
-          <Radio className="size-3" />
-          LIVE
-        </Badge>
-
-        <Badge variant="outline" className="relative">
-          <Bell className="size-3.5" />
-          <span className="absolute -top-1 -right-1 size-2 rounded-full bg-rose-500" />
-        </Badge>
-
-        <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary border border-primary/20">
+        <div className="relative hidden sm:block">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            className="h-8 w-48 pl-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <button className="relative flex size-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+          <Bell className="size-4" />
+          <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-accent-red" />
+        </button>
+        <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
           OP
         </div>
       </div>
@@ -155,20 +152,16 @@ export default function Layout() {
         <AppSidebar />
         <SidebarInset>
           <TopBar />
-          <main className="flex-1 overflow-auto p-4 md:p-6">
+          <main className="flex-1 overflow-auto p-4">
             <motion.div
               key={location.pathname}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
             >
               <Outlet />
             </motion.div>
           </main>
-          <footer className="flex items-center justify-between border-t border-border px-5 py-2 text-xs text-muted-foreground">
-            <span>TerraCube Sentinel v0.1.0</span>
-            <span className="hidden sm:inline">Open Foundry Ontology | Dagster Pipelines | GLM-5 AI</span>
-          </footer>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
